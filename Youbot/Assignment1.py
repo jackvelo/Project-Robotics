@@ -124,6 +124,10 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 # Set the speed of the wheels to 0.
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
+# Initialise the state machine.
+fsm = 'search'
+print('Switching to state: ', fsm)
+
 # Send a Trigger to the simulator: this will run a time step for the physic engine
 # because of the synchronous mode. Run several iterations to stabilize the simulation
 for i in range(int(1./timestep)):
@@ -143,8 +147,14 @@ while True:
          res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
          vrchk(vrep, res, True)
 
+         # Get the position of the robot in matrix form
+         xRobot = round((youbotPos[1] + 7.5)/resolution) + 1
+         yRobot = round((youbotPos[2] + 7.5)/resolution) + 1
 
-# print(type(youbotPos[0]))
+         # Drawing the map initialization
+         # Get data from the hokuyo - return empty if data is not captured
+         scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer)
+         vrchk(vrep, res)
 
 
 
@@ -176,13 +186,13 @@ while True:
 #         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
 #         vrchk(vrep, res, True)
 #
-         # Get the distance from the beacons
-         # Change the flag to True to constraint the range of the beacons
-         beacon_dist = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False)
+         # # Get the distance from the beacons
+         # # Change the flag to True to constraint the range of the beacons
+         # beacon_dist = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False)
 
-         # Get data from the hokuyo - return empty if data is not captured
-         scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer)
-         vrchk(vrep, res)
+         # # Get data from the hokuyo - return empty if data is not captured
+         # scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer)
+         # vrchk(vrep, res)
 #
 #         # Apply the state machine.
 #         if fsm == 'forward':
