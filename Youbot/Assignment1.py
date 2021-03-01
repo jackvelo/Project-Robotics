@@ -11,6 +11,7 @@ import sim as vrep
 
 # Useful import
 import time
+import math
 import numpy as np
 import sys
 
@@ -148,11 +149,14 @@ while True:
          vrchk(vrep, res, True)
 
          # Get the position of the robot in matrix form
-         xRobot = round((youbotPos[1] + 7.5)/resolution) + 1
-         yRobot = round((youbotPos[2] + 7.5)/resolution) + 1
+         xRobot = round((youbotPos[0] + 7.5)/resolution)
+         yRobot = round((youbotPos[1] + 7.5)/resolution)
 
          # Drawing the map initialization
          # Get data from the hokuyo - return empty if data is not captured
+         rotangle =  youbotEuler[2] - math.pi/2
+         hokuyoPos = 
+
          scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer)
          vrchk(vrep, res)
 
