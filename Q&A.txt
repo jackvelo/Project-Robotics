@@ -1,0 +1,3 @@
+Q&A:
+
+- distanza fra centro del robot e sensore

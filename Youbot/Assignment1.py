@@ -169,12 +169,12 @@ while True:
          xRobot = round((youbotPos[0] + 7.5)/resolution)
          yRobot = round((youbotPos[1] + 7.5)/resolution)
 
-
          ## Drawing the map initialization
          # Get data from the hokuyo - return empty if data is not captured
          rotangle = youbotEuler[2] - math.pi/2
-         hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23  #0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
-         #print(hokuyoPos)
+         hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
+         #0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
+         print(hokuyoPos)
 
          # Determine the position of the Hokuyo with global coordinates (world reference frame).
          from trans_rot_matrix import trans_rot_matrix
@@ -187,35 +187,35 @@ while True:
          # we need to concatenate row 1 and 4. This is done on the following lines of code
 
 
-         ## Free space points
-         from matplotlib.path import Path
-         import matplotlib.pyplot as plt
-         points = np.vstack((x,y)).T # x, y defined on line 108
-
-         # reorder scanned_points like [(x1,y1),(x2,y2)...(xn,yn)]
-         row1 = scanned_points[0,:]
-         row2 = scanned_points[1,:]
-         row4 = scanned_points[3,:]
-         row5 = scanned_points[4,:]
-         arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
-         arr2 = np.squeeze(np.asarray(row2))
-         arr4 = np.squeeze(np.asarray(row4))
-         arr5 = np.squeeze(np.asarray(row5))
-         x_polygon = np.hstack(( arr1, arr4)) #concatenate horizontally
-         y_polygon = np.hstack(( arr2, arr5))
-
-         # from here needs to be controlled again
-         xx_polygon, yy_polygon = np.meshgrid(x_polygon, y_polygon)
-         xx_polygon, yy_polygon = yy_polygon.flatten(), xx_polygon.flatten()
-         scanned_points_grid = np.vstack((xx_polygon,yy_polygon)).T
-
-         p = Path(scanned_points_grid) # make a polygon
-         grid = p.contains_points(points)
-
-         np.set_printoptions(threshold=sys.maxsize)
-         print(grid)
-
-         #p = Path() # make a polygon
+         # ## Free space points
+         # from matplotlib.path import Path
+         # import matplotlib.pyplot as plt
+         # points = np.vstack((x,y)).T # x, y defined on line 108
+         #
+         # # reorder scanned_points like [(x1,y1),(x2,y2)...(xn,yn)]
+         # row1 = scanned_points[0,:]
+         # row2 = scanned_points[1,:]
+         # row4 = scanned_points[3,:]
+         # row5 = scanned_points[4,:]
+         # arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
+         # arr2 = np.squeeze(np.asarray(row2))
+         # arr4 = np.squeeze(np.asarray(row4))
+         # arr5 = np.squeeze(np.asarray(row5))
+         # x_polygon = np.hstack(( arr1, arr4)) #concatenate horizontally
+         # y_polygon = np.hstack(( arr2, arr5))
+         #
+         # # from here needs to be controlled again
+         # xx_polygon, yy_polygon = np.meshgrid(x_polygon, y_polygon)
+         # xx_polygon, yy_polygon = yy_polygon.flatten(), xx_polygon.flatten()
+         # scanned_points_grid = np.vstack((xx_polygon,yy_polygon)).T
+         #
+         # p = Path(scanned_points_grid) # make a polygon
+         # grid = p.contains_points(points)
+         #
+         # np.set_printoptions(threshold=sys.maxsize)
+         # print(grid)
+         #
+         # #p = Path() # make a polygon
 
 
 
