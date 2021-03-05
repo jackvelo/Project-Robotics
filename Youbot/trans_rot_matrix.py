@@ -30,4 +30,4 @@ def trans_rot_matrix(rotation, translation):
                               [zS, zC, 0, 0],
                               [0, 0, 1, 0],
                               [0, 0, 0, 1]])
-  return np.dot(Rotate_Z_matrix,np.dot(Rotate_Y_matrix,np.dot(Rotate_X_matrix,Translate_matrix)))
+  return np.dot(np.dot(np.dot(Translate_matrix,Rotate_X_matrix),Rotate_Y_matrix),Rotate_Z_matrix)

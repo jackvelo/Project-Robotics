@@ -169,7 +169,8 @@ while True:
          xRobot = round((youbotPos[0] + 7.5)/resolution)
          yRobot = round((youbotPos[1] + 7.5)/resolution)
 
-         ## Drawing the map initialization
+         ## Drawing the map initialization ##
+         #
          # Get data from the hokuyo - return empty if data is not captured
          rotangle = youbotEuler[2] - math.pi/2
          hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
@@ -186,13 +187,12 @@ while True:
          # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
          # we need to concatenate row 1 and 4. This is done on the following lines of code
 
-
          ## Free space points
          from matplotlib.path import Path
          import matplotlib.pyplot as plt
          points = np.vstack((x,y)).T # x, y defined on line 108
 
-         # reorder scanned_points like [(x1,y1),(x2,y2)...(xn,yn)]
+         # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
          row1 = scanned_points[0,:]
          row2 = scanned_points[1,:]
          row4 = scanned_points[3,:]
@@ -201,16 +201,16 @@ while True:
          arr2 = np.squeeze(np.asarray(row2))
          arr4 = np.squeeze(np.asarray(row4))
          arr5 = np.squeeze(np.asarray(row5))
-         x_polygon = np.hstack((youbotPos[0], arr1, arr4)) #concatenate horizontally
-         y_polygon = np.hstack((youbotPos[1], arr2, arr5))
+         x_scanned = np.hstack((arr1, arr4)) #concatenate horizontally
+         y_scanned = np.hstack((arr2, arr5))
+         x_polygon = np.hstack((youbotPos[0], x_scanned)) #concatenate horizontally
+         y_polygon = np.hstack((youbotPos[1], y_scanned))
          polygon_vertex = np.vstack((x_polygon, y_polygon)).T
-         print(polygon_vertex)
 
          # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
          # are inside this polygon. The points inside the polygon will be free space
          p = Path(polygon_vertex) # make a polygon
          grid = p.contains_points(points) # check what points fall inside (grid represents the index of the points)
-         print(grid)
 
          # Get the real coordinates of the points determined by "grid"
          x_free = x[grid]
@@ -227,9 +227,133 @@ while True:
              if statesMap[int(x_free[i]), int(y_free[i])] == 1:
                  statesMap[int(x_free[i]), int(y_free[i])] = 0
 
+
+         # Obstacle points
+         contacts_total = np.hstack((contacts[0,:], contacts[1,:]))
+         xObstacle = x_scanned[contacts_total]
+         yObstacle = y_scanned[contacts_total]
+
+         xObstacle = (xObstacle + 7.5)/resolution
+         yObstacle = (yObstacle + 7.5)/resolution
+         xObstacle = np.round(xObstacle)
+         yObstacle = np.round(yObstacle)
+
+
+         for i in range(len(xObstacle)):
+             statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
+
+             #
+             if 0 <= xObstacle[i] + 1 < len(xAxis) \
+             and 0 <= yObstacle[i] + 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] == 0:
+                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] = 3
+
+             if 0 <= xObstacle[i] + 1 < len(xAxis) \
+             and 0 <= yObstacle[i] - 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] == 0:
+                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] = 3
+
+             if 0 <= xObstacle[i] + 1 < len(xAxis) \
+             and 0 <= yObstacle[i] < len(yAxis):
+                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] == 0:
+                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] = 3
+
+             if 0 <= xObstacle[i] - 1 < len(xAxis) \
+             and 0 <= yObstacle[i] + 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] == 0:
+                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] = 3
+
+             if 0 <= xObstacle[i] - 1 < len(xAxis) \
+             and 0 <= yObstacle[i] - 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] == 0:
+                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] = 3
+
+             if 0 <= xObstacle[i] - 1 < len(xAxis) \
+             and 0 <= yObstacle[i] < len(yAxis):
+                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] == 0:
+                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] = 3
+
+             if 0 <= xObstacle[i] < len(xAxis) \
+             and 0 <= yObstacle[i] + 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] == 0:
+                     statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] = 3
+
+             if 0 <= xObstacle[i]< len(xAxis) \
+             and 0 <= yObstacle[i] - 1 < len(yAxis):
+                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
+                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
+
+
          plt.matshow(statesMap)
          plt.colorbar()
          plt.show()
+
+         ## Occupancy grid
+
+         occupancyGrid = np.ones((n,n), dtype=int)
+
+         for j in range(len(xAxis)):
+             for k in range(len(yAxis)):
+                 if statesMap[j,k] == 2 or statesMap[j,k] == 3:
+                     occupancyGrid[j,k] = 1
+                 else:
+                     occupancyGrid[j,k] = 0
+
+         plt.matshow(occupancyGrid)
+         plt.colorbar()
+         plt.show()
+
+         ## Search algorithm
+         # search for a goal point to visit
+
+         Apply the state machine.
+         if fsm == 'searchAlgo':
+
+         # initialize variables
+         xTarget = 0
+         yTarget = 0
+         foundTarget = False
+
+         # first, we search a target near the horizon
+         x_scanned = (x_scanned + 7.5)/resolution
+         y_scanned = (y_scanned + 7.5)/resolution
+         x_scanned = np.round(x_scanned)
+         y_scanned = np.round(y_scanned)
+
+         for ii in range(len(x_scanned)):
+
+             if statesMap[x_scanned[ii],y_scanned[ii]] == 0:
+
+                 if x_scanned[ii] + 1 <= n and statesMap[x_scanned[ii] + 1,y_scanned[ii]] == 1:
+
+                     xUnknown = x_scanned[ii] + 1
+                     yUnknown = y_scanned[ii]
+                     foundTarget = True
+
+                 elif x_scanned[ii] - 1 <= n and statesMap[x_scanned[ii] - 1,y_scanned[ii]] == 1:
+
+                     xUnknown = x_scanned[ii] - 1
+                     yUnknown = y_scanned[ii]
+                     foundTarget = True
+
+                 elif y_scanned[ii] + 1 <= n and statesMap[x_scanned[ii],y_scanned[ii] + 1] == 1:
+
+                     xUnknown = x_scanned[ii]
+                     yUnknown = y_scanned[ii] + 1
+                     foundTarget = True
+
+                 elif y_scanned[ii] - 1 <= n and statesMap[x_scanned[ii],y_scanned[ii] - 1] == 1:
+
+                     xUnknown = x_scanned[ii]
+                     yUnknown = y_scanned[ii] - 1
+                     foundTarget = True
+
+
+             if foundTarget:
+
+                 xT = x_scanned[ii]
+                 yT = y_scanned[ii]
+
 
 
 # # First state of state machine
