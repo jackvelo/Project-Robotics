@@ -187,36 +187,49 @@ while True:
          # we need to concatenate row 1 and 4. This is done on the following lines of code
 
 
-         # ## Free space points
-         # from matplotlib.path import Path
-         # import matplotlib.pyplot as plt
-         # points = np.vstack((x,y)).T # x, y defined on line 108
-         #
-         # # reorder scanned_points like [(x1,y1),(x2,y2)...(xn,yn)]
-         # row1 = scanned_points[0,:]
-         # row2 = scanned_points[1,:]
-         # row4 = scanned_points[3,:]
-         # row5 = scanned_points[4,:]
-         # arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
-         # arr2 = np.squeeze(np.asarray(row2))
-         # arr4 = np.squeeze(np.asarray(row4))
-         # arr5 = np.squeeze(np.asarray(row5))
-         # x_polygon = np.hstack(( arr1, arr4)) #concatenate horizontally
-         # y_polygon = np.hstack(( arr2, arr5))
-         #
-         # # from here needs to be controlled again
-         # xx_polygon, yy_polygon = np.meshgrid(x_polygon, y_polygon)
-         # xx_polygon, yy_polygon = yy_polygon.flatten(), xx_polygon.flatten()
-         # scanned_points_grid = np.vstack((xx_polygon,yy_polygon)).T
-         #
-         # p = Path(scanned_points_grid) # make a polygon
-         # grid = p.contains_points(points)
-         #
-         # np.set_printoptions(threshold=sys.maxsize)
-         # print(grid)
-         #
-         # #p = Path() # make a polygon
+         ## Free space points
+         from matplotlib.path import Path
+         import matplotlib.pyplot as plt
+         points = np.vstack((x,y)).T # x, y defined on line 108
 
+         # reorder scanned_points like [(x1,y1),(x2,y2)...(xn,yn)]
+         row1 = scanned_points[0,:]
+         row2 = scanned_points[1,:]
+         row4 = scanned_points[3,:]
+         row5 = scanned_points[4,:]
+         arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
+         arr2 = np.squeeze(np.asarray(row2))
+         arr4 = np.squeeze(np.asarray(row4))
+         arr5 = np.squeeze(np.asarray(row5))
+         x_polygon = np.hstack((youbotPos[0], arr1, arr4)) #concatenate horizontally
+         y_polygon = np.hstack((youbotPos[1], arr2, arr5))
+         polygon_vertex = np.vstack((x_polygon, y_polygon)).T
+         print(polygon_vertex)
+
+         # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
+         # are inside this polygon. The points inside the polygon will be free space
+         p = Path(polygon_vertex) # make a polygon
+         grid = p.contains_points(points) # check what points fall inside (grid represents the index of the points)
+         print(grid)
+
+         # Get the real coordinates of the points determined by "grid"
+         x_free = x[grid]
+         y_free = y[grid]
+
+         # get the free point in matrix form
+         x_free = (x_free + 7.5)/resolution
+         y_free = (y_free + 7.5)/resolution
+         x_free = np.round(x_free)
+         y_free = np.round(y_free)
+
+         # update reachable states of the statesMap
+         for i in range(len(x_free)):
+             if statesMap[int(x_free[i]), int(y_free[i])] == 1:
+                 statesMap[int(x_free[i]), int(y_free[i])] = 0
+
+         plt.matshow(statesMap)
+         plt.colorbar()
+         plt.show()
 
 
 # # First state of state machine
