@@ -310,6 +310,7 @@ while True:
          if fsm == 'searchAlgo':
 
          # initialize variables
+         distmin = 100
          xTarget = 0
          yTarget = 0
          foundTarget = False
@@ -351,9 +352,83 @@ while True:
 
              if foundTarget:
 
-                 xT = x_scanned[ii]
-                 yT = y_scanned[ii]
+                 xTarget = x_scanned[ii]
+                 yTarget = y_scanned[ii]
 
+
+         if xTarget == 0:
+
+             # search for a target point everywhere, finding an unknown element with adjacent free space
+             for jj in range(1, xLength):
+
+                 for kk in range(1, yLength):
+
+                     if statesMap[jj, kk] == 1:
+
+                         if statesMap[jj - 1, kk] == 0:
+                             xT = jj - 1
+                             yT = kk
+                             foundTarget = True
+
+                         elif statesMap[jj + 1, kk] == 0:
+                                xG = jj + 1
+                                yG = kk
+                                foundGoal = True
+
+                         elif statesMap[jj, kk + 1] == 0:
+                                xG = jj
+                                yG = kk + 1
+                                foundGoal = True
+
+                         elif statesMap[jj, kk - 1] == 0:
+                                xG = jj
+                                yG = kk - 1
+                                foundGoal = True
+
+                         if foundTarget:
+
+                             # compute distance and
+                             dist = (xRobot - xT)^2 + (yRobot - yT)^2
+                             if 7 < dist < distmin:
+                                 xUnknown = jj
+                                 yUnknown = kk
+                                 xTarget = xT
+                                 yTarget = yT
+                                 distmin = dist
+
+                             foundTarget = False
+
+         # if the map is fully explored
+         if xTarget == 0
+             fsm = 'navigation_finished'
+         else
+             fsm = 'dstar'
+
+
+         ## Manage end of navigation
+         if fsm == 'naviagtion_finished':
+
+            print('No more accessible points to visit...')
+            print('Final map created')
+            # save('statesMap.mat')
+
+            # Every unreachable point is considered as an obstacles
+            for j in range(xLength):
+                for k in range(yLength):
+                    if statesMap[j, k] == 1:
+                        statesMap[j, k] = 2
+
+            # Plot of the total map
+            figure(3)
+            plt.matshow(statesMap)
+            plt.colorbar()
+            plt.show()
+
+            # End the infinite loop
+            p = false
+
+
+         ## Dstar path planning
 
 
 # # First state of state machine
