@@ -131,7 +131,7 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
-fsm = 'search'
+fsm = 'searchAlgo'
 print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
@@ -306,107 +306,108 @@ while True:
          ## Search algorithm
          # search for a goal point to visit
 
-         Apply the state machine.
+         #Apply the state machine.
          if fsm == 'searchAlgo':
 
-         # initialize variables
-         distmin = 100
-         xTarget = 0
-         yTarget = 0
-         foundTarget = False
 
-         # first, we search a target near the horizon
-         x_scanned = (x_scanned + 7.5)/resolution
-         y_scanned = (y_scanned + 7.5)/resolution
-         x_scanned = np.round(x_scanned)
-         y_scanned = np.round(y_scanned)
+             # initialize variables
+             distmin = 100
+             xTarget = 0
+             yTarget = 0
+             foundTarget = False
 
-         for ii in range(len(x_scanned)):
+             # first, we search a target near the horizon
+             x_scanned = (x_scanned + 7.5)/resolution
+             y_scanned = (y_scanned + 7.5)/resolution
+             x_scanned = np.round(x_scanned)
+             y_scanned = np.round(y_scanned)
 
-             if statesMap[x_scanned[ii],y_scanned[ii]] == 0:
+             for ii in range(len(x_scanned)):
 
-                 if x_scanned[ii] + 1 <= n and statesMap[x_scanned[ii] + 1,y_scanned[ii]] == 1:
+                 if statesMap[int(x_scanned[ii]), int(y_scanned[ii])] == 0:
 
-                     xUnknown = x_scanned[ii] + 1
-                     yUnknown = y_scanned[ii]
-                     foundTarget = True
+                     if int(x_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]) + 1,int(y_scanned[ii])] == 1:
 
-                 elif x_scanned[ii] - 1 <= n and statesMap[x_scanned[ii] - 1,y_scanned[ii]] == 1:
+                         xUnknown = int(x_scanned[ii]) + 1
+                         yUnknown = int(y_scanned[ii])
+                         foundTarget = True
 
-                     xUnknown = x_scanned[ii] - 1
-                     yUnknown = y_scanned[ii]
-                     foundTarget = True
+                     elif int(x_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]) - 1,int(y_scanned[ii])] == 1:
 
-                 elif y_scanned[ii] + 1 <= n and statesMap[x_scanned[ii],y_scanned[ii] + 1] == 1:
+                         xUnknown = int(x_scanned[ii]) - 1
+                         yUnknown = int(y_scanned[ii])
+                         foundTarget = True
 
-                     xUnknown = x_scanned[ii]
-                     yUnknown = y_scanned[ii] + 1
-                     foundTarget = True
+                     elif int(y_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) + 1] == 1:
 
-                 elif y_scanned[ii] - 1 <= n and statesMap[x_scanned[ii],y_scanned[ii] - 1] == 1:
+                         xUnknown = int(x_scanned[ii])
+                         yUnknown = int(y_scanned[ii]) + 1
+                         foundTarget = True
 
-                     xUnknown = x_scanned[ii]
-                     yUnknown = y_scanned[ii] - 1
-                     foundTarget = True
+                     elif int(y_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) - 1] == 1:
 
-
-             if foundTarget:
-
-                 xTarget = x_scanned[ii]
-                 yTarget = y_scanned[ii]
+                         xUnknown = int(x_scanned[ii])
+                         yUnknown = int(y_scanned[ii]) - 1
+                         foundTarget = True
 
 
-         if xTarget == 0:
+                 if foundTarget:
 
-             # search for a target point everywhere, finding an unknown element with adjacent free space
-             for jj in range(1, xLength):
+                     xTarget = int(x_scanned[ii])
+                     yTarget = int(y_scanned[ii])
 
-                 for kk in range(1, yLength):
 
-                     if statesMap[jj, kk] == 1:
+             if xTarget == 0:
 
-                         if statesMap[jj - 1, kk] == 0:
-                             xT = jj - 1
-                             yT = kk
-                             foundTarget = True
+                 # search for a target point everywhere, finding an unknown element with adjacent free space
+                 for jj in range(1, xLength):
 
-                         elif statesMap[jj + 1, kk] == 0:
-                                xG = jj + 1
-                                yG = kk
-                                foundGoal = True
+                     for kk in range(1, yLength):
 
-                         elif statesMap[jj, kk + 1] == 0:
-                                xG = jj
-                                yG = kk + 1
-                                foundGoal = True
+                         if statesMap[jj, kk] == 1:
 
-                         elif statesMap[jj, kk - 1] == 0:
-                                xG = jj
-                                yG = kk - 1
-                                foundGoal = True
+                             if statesMap[jj - 1, kk] == 0:
+                                 xT = jj - 1
+                                 yT = kk
+                                 foundTarget = True
 
-                         if foundTarget:
+                             elif statesMap[jj + 1, kk] == 0:
+                                    xG = jj + 1
+                                    yG = kk
+                                    foundGoal = True
 
-                             # compute distance and
-                             dist = (xRobot - xT)^2 + (yRobot - yT)^2
-                             if 7 < dist < distmin:
-                                 xUnknown = jj
-                                 yUnknown = kk
-                                 xTarget = xT
-                                 yTarget = yT
-                                 distmin = dist
+                             elif statesMap[jj, kk + 1] == 0:
+                                    xG = jj
+                                    yG = kk + 1
+                                    foundGoal = True
 
-                             foundTarget = False
+                             elif statesMap[jj, kk - 1] == 0:
+                                    xG = jj
+                                    yG = kk - 1
+                                    foundGoal = True
 
-         # if the map is fully explored
-         if xTarget == 0
-             fsm = 'navigation_finished'
-         else
-             fsm = 'dstar'
+                             if foundTarget:
+
+                                 # compute distance and
+                                 dist = (xRobot - xT)^2 + (yRobot - yT)^2
+                                 if 7 < dist < distmin:
+                                     xUnknown = jj
+                                     yUnknown = kk
+                                     xTarget = xT
+                                     yTarget = yT
+                                     distmin = dist
+
+                                 foundTarget = False
+
+             # if the map is fully explored
+             if xTarget == 0:
+                 fsm = 'navigation_finished'
+             else:
+                 fsm = 'dstar'
 
 
          ## Manage end of navigation
-         if fsm == 'naviagtion_finished':
+         if fsm == 'navigation_finished':
 
             print('No more accessible points to visit...')
             print('Final map created')
@@ -429,6 +430,29 @@ while True:
 
 
          ## Dstar path planning
+
+         if fsm == 'dstar':
+
+             # Dstar algorithm implemetation by Peter Corke
+             from dstar import dstar
+
+             ds = dstar(occupancyGrid)
+
+             ds.costmap_get()
+
+             da.plan([yTarget, xTarget])
+
+             targetsMatFull = ds.path([yRobot, xRobot])
+
+             if 'targetsMat' in locals():
+                 del targetsMat
+
+             # Elimination of 1 point of the path to avoid too long computations
+             targetsMat[:, 0] = targetsMatFull[::2, 0]
+             targetsMat[:, 1] = targetsMatFull[::2, 1]
+
+             print('targetsMat')
+
 
 
 # # First state of state machine
