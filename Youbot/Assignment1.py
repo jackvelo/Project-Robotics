@@ -154,304 +154,320 @@ for i in range(int(1./timestep)):
 
 # Start the demo.
 while True:
-     try:  # used when a code can give error --> "try" and "except" at the end give the error explanation
-         # Check the connection with the simulator
-         if vrep.simxGetConnectionId(clientID) == -1:
-             sys.exit('Lost connection to remote API.')
-
-         # Get the position and the orientation of the robot.
-         res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-         vrchk(vrep, res, True) # Check the return value from the previous V-REP call (res) and exit in case of error.
-         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-         vrchk(vrep, res, True)
-
-         # Get the position of the robot in matrix form
-         xRobot = round((youbotPos[0] + 7.5)/resolution)
-         yRobot = round((youbotPos[1] + 7.5)/resolution)
-
-         ## Drawing the map initialization ##
-         #
-         # Get data from the hokuyo - return empty if data is not captured
-         rotangle = youbotEuler[2] - math.pi/2
-         hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
-         #0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
-         print(hokuyoPos)
-
-         # Determine the position of the Hokuyo with global coordinates (world reference frame).
-         from trans_rot_matrix import trans_rot_matrix
-         trf = trans_rot_matrix(youbotEuler, youbotPos) # check the file trans_rot_matrix for explanation
-
-         scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer, trf)
-         vrchk(vrep, res)
-         # scanned_points is a 6xN matrix, where rows 1 and 4 represents coordinate x,
-         # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
-         # we need to concatenate row 1 and 4. This is done on the following lines of code
-
-         ## Free space points
-         from matplotlib.path import Path
-         import matplotlib.pyplot as plt
-         points = np.vstack((x,y)).T # x, y defined on line 108
-
-         # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
-         row1 = scanned_points[0,:]
-         row2 = scanned_points[1,:]
-         row4 = scanned_points[3,:]
-         row5 = scanned_points[4,:]
-         arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
-         arr2 = np.squeeze(np.asarray(row2))
-         arr4 = np.squeeze(np.asarray(row4))
-         arr5 = np.squeeze(np.asarray(row5))
-         x_scanned = np.hstack((arr1, arr4)) #concatenate horizontally
-         y_scanned = np.hstack((arr2, arr5))
-         x_polygon = np.hstack((youbotPos[0], x_scanned)) #concatenate horizontally
-         y_polygon = np.hstack((youbotPos[1], y_scanned))
-         polygon_vertex = np.vstack((x_polygon, y_polygon)).T
-
-         # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
-         # are inside this polygon. The points inside the polygon will be free space
-         p = Path(polygon_vertex) # make a polygon
-         grid = p.contains_points(points) # check what points fall inside (grid represents the index of the points)
-
-         # Get the real coordinates of the points determined by "grid"
-         x_free = x[grid]
-         y_free = y[grid]
-
-         # get the free point in matrix form
-         x_free = (x_free + 7.5)/resolution
-         y_free = (y_free + 7.5)/resolution
-         x_free = np.round(x_free)
-         y_free = np.round(y_free)
-
-         # update reachable states of the statesMap
-         for i in range(len(x_free)):
-             if statesMap[int(x_free[i]), int(y_free[i])] == 1:
-                 statesMap[int(x_free[i]), int(y_free[i])] = 0
-
-
-         # Obstacle points
-         contacts_total = np.hstack((contacts[0,:], contacts[1,:]))
-         xObstacle = x_scanned[contacts_total]
-         yObstacle = y_scanned[contacts_total]
-
-         xObstacle = (xObstacle + 7.5)/resolution
-         yObstacle = (yObstacle + 7.5)/resolution
-         xObstacle = np.round(xObstacle)
-         yObstacle = np.round(yObstacle)
-
-
-         for i in range(len(xObstacle)):
-             statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
-
-             #
-             if 0 <= xObstacle[i] + 1 < len(xAxis) \
-             and 0 <= yObstacle[i] + 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] == 0:
-                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] = 3
-
-             if 0 <= xObstacle[i] + 1 < len(xAxis) \
-             and 0 <= yObstacle[i] - 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] == 0:
-                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] = 3
-
-             if 0 <= xObstacle[i] + 1 < len(xAxis) \
-             and 0 <= yObstacle[i] < len(yAxis):
-                 if statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] == 0:
-                     statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] = 3
+    try:# used when a code can give error --> "try" and "except" at the end give the error explanation
+        # Check the connection with the simulator
+        if vrep.simxGetConnectionId(clientID) == -1:
+            sys.exit('Lost connection to remote API.')
+
+        # Get the position and the orientation of the robot.
+        res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        vrchk(vrep, res, True) # Check the return value from the previous V-REP call (res) and exit in case of error.
+        res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        vrchk(vrep, res, True)
+
+        # Get the position of the robot in matrix form
+        xRobot = round((youbotPos[0] + 7.5)/resolution)
+        yRobot = round((youbotPos[1] + 7.5)/resolution)
+
+        ## Drawing the map initialization ##
+        #
+        # Get data from the hokuyo - return empty if data is not captured
+        rotangle = youbotEuler[2] - math.pi/2
+        hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
+        #0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
+        # print(hokuyoPos)
+
+        # Determine the position of the Hokuyo with global coordinates (world reference frame).
+        from trans_rot_matrix import trans_rot_matrix
+        trf = trans_rot_matrix(youbotEuler, youbotPos) # check the file trans_rot_matrix for explanation
+
+        scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer, trf)
+        vrchk(vrep, res)
+        # scanned_points is a 6xN matrix, where rows 1 and 4 represents coordinate x,
+        # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
+        # we need to concatenate row 1 and 4. This is done on the following lines of code
+
+        ## Free space points
+        from matplotlib.path import Path
+        import matplotlib.pyplot as plt
+        points = np.vstack((x,y)).T # x, y defined on line 108
+
+        # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
+        row1 = scanned_points[0,:]
+        row2 = scanned_points[1,:]
+        row4 = scanned_points[3,:]
+        row5 = scanned_points[4,:]
+        arr1 = np.squeeze(np.asarray(row1)) # squeeze change the type from np.matrix to np.array, needed to concatenate
+        arr2 = np.squeeze(np.asarray(row2))
+        arr4 = np.squeeze(np.asarray(row4))
+        arr5 = np.squeeze(np.asarray(row5))
+        x_scanned = np.hstack((arr1, arr4)) #concatenate horizontally
+        y_scanned = np.hstack((arr2, arr5))
+        x_polygon = np.hstack((youbotPos[0], x_scanned)) #concatenate horizontally
+        y_polygon = np.hstack((youbotPos[1], y_scanned))
+        polygon_vertex = np.vstack((x_polygon, y_polygon)).T
+
+        # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
+        # are inside this polygon. The points inside the polygon will be free space
+        p = Path(polygon_vertex) # make a polygon
+        grid = p.contains_points(points) # check what points fall inside (grid represents the index of the points)
+
+        # Get the real coordinates of the points determined by "grid"
+        x_free = x[grid]
+        y_free = y[grid]
+
+        # get the free point in matrix form
+        x_free = (x_free + 7.5)/resolution
+        y_free = (y_free + 7.5)/resolution
+        x_free = np.round(x_free)
+        y_free = np.round(y_free)
+
+        # update reachable states of the statesMap
+        for i in range(len(x_free)):
+            if statesMap[int(x_free[i]), int(y_free[i])] == 1:
+                statesMap[int(x_free[i]), int(y_free[i])] = 0
+
+
+        # Obstacle points
+        contacts_total = np.hstack((contacts[0,:], contacts[1,:]))
+        xObstacle = x_scanned[contacts_total]
+        yObstacle = y_scanned[contacts_total]
+
+        xObstacle = (xObstacle + 7.5)/resolution
+        yObstacle = (yObstacle + 7.5)/resolution
+        xObstacle = np.round(xObstacle)
+        yObstacle = np.round(yObstacle)
+
+
+        for i in range(len(xObstacle)):
+            statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
+
+            #
+            if 0 <= xObstacle[i] + 1 < len(xAxis) \
+            and 0 <= yObstacle[i] + 1 < len(yAxis):
+                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] == 0:
+                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] = 3
+
+            if 0 <= xObstacle[i] + 1 < len(xAxis) \
+            and 0 <= yObstacle[i] - 1 < len(yAxis):
+                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] == 0:
+                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] = 3
+
+            if 0 <= xObstacle[i] + 1 < len(xAxis) \
+            and 0 <= yObstacle[i] < len(yAxis):
+                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] == 0:
+                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] = 3
 
-             if 0 <= xObstacle[i] - 1 < len(xAxis) \
-             and 0 <= yObstacle[i] + 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] == 0:
-                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] = 3
+            if 0 <= xObstacle[i] - 1 < len(xAxis) \
+            and 0 <= yObstacle[i] + 1 < len(yAxis):
+                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] == 0:
+                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] = 3
 
-             if 0 <= xObstacle[i] - 1 < len(xAxis) \
-             and 0 <= yObstacle[i] - 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] == 0:
-                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] = 3
+            if 0 <= xObstacle[i] - 1 < len(xAxis) \
+            and 0 <= yObstacle[i] - 1 < len(yAxis):
+                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] == 0:
+                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] = 3
 
-             if 0 <= xObstacle[i] - 1 < len(xAxis) \
-             and 0 <= yObstacle[i] < len(yAxis):
-                 if statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] == 0:
-                     statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] = 3
+            if 0 <= xObstacle[i] - 1 < len(xAxis) \
+            and 0 <= yObstacle[i] < len(yAxis):
+                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] == 0:
+                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] = 3
 
-             if 0 <= xObstacle[i] < len(xAxis) \
-             and 0 <= yObstacle[i] + 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] == 0:
-                     statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] = 3
+            if 0 <= xObstacle[i] < len(xAxis) \
+            and 0 <= yObstacle[i] + 1 < len(yAxis):
+                if statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] == 0:
+                    statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] = 3
 
-             if 0 <= xObstacle[i]< len(xAxis) \
-             and 0 <= yObstacle[i] - 1 < len(yAxis):
-                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
-                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
+            if 0 <= xObstacle[i]< len(xAxis) \
+            and 0 <= yObstacle[i] - 1 < len(yAxis):
+                if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
+                    statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
 
 
-         plt.matshow(statesMap)
-         plt.colorbar()
-         plt.show()
+        plt.matshow(statesMap)
+        plt.colorbar()
+        plt.show()
 
-         ## Occupancy grid
+        ## Occupancy grid
 
-         occupancyGrid = np.ones((n,n), dtype=int)
+        occupancyGrid = np.ones((n,n), dtype=int)
 
-         for j in range(len(xAxis)):
-             for k in range(len(yAxis)):
-                 if statesMap[j,k] == 2 or statesMap[j,k] == 3:
-                     occupancyGrid[j,k] = 1
-                 else:
-                     occupancyGrid[j,k] = 0
+        for j in range(len(xAxis)):
+            for k in range(len(yAxis)):
+                if statesMap[j,k] == 2 or statesMap[j,k] == 3:
+                    occupancyGrid[j,k] = 1
+                else:
+                    occupancyGrid[j,k] = 0
 
-         plt.matshow(occupancyGrid)
-         plt.colorbar()
-         plt.show()
+        plt.matshow(occupancyGrid)
+        plt.colorbar()
+        plt.show()
 
-         ## Search algorithm
-         # search for a goal point to visit
+        ## Search algorithm
+        # search for a goal point to visit
 
-         #Apply the state machine.
-         if fsm == 'searchAlgo':
+        #Apply the state machine.
+        if fsm == 'searchAlgo':
 
 
-             # initialize variables
-             distmin = 100
-             xTarget = 0
-             yTarget = 0
-             foundTarget = False
+            # initialize variables
+            distmin = 100
+            xTarget = 0
+            yTarget = 0
+            foundTarget = False
 
-             # first, we search a target near the horizon
-             x_scanned = (x_scanned + 7.5)/resolution
-             y_scanned = (y_scanned + 7.5)/resolution
-             x_scanned = np.round(x_scanned)
-             y_scanned = np.round(y_scanned)
+            # first, we search a target near the horizon
+            x_scanned = (x_scanned + 7.5)/resolution
+            y_scanned = (y_scanned + 7.5)/resolution
+            x_scanned = np.round(x_scanned)
+            y_scanned = np.round(y_scanned)
 
-             for ii in range(len(x_scanned)):
+            for ii in range(len(x_scanned)):
+                if statesMap[int(x_scanned[ii]), int(y_scanned[ii])] == 0:
 
-                 if statesMap[int(x_scanned[ii]), int(y_scanned[ii])] == 0:
+                    if int(x_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]) + 1, int(y_scanned[ii])] == 1:
 
-                     if int(x_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]) + 1,int(y_scanned[ii])] == 1:
+                        xUnknown = int(x_scanned[ii]) + 1
+                        yUnknown = int(y_scanned[ii])
+                        foundTarget = True
 
-                         xUnknown = int(x_scanned[ii]) + 1
-                         yUnknown = int(y_scanned[ii])
-                         foundTarget = True
+                    elif int(x_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]) - 1,int(y_scanned[ii])] == 1:
 
-                     elif int(x_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]) - 1,int(y_scanned[ii])] == 1:
+                        xUnknown = int(x_scanned[ii]) - 1
+                        yUnknown = int(y_scanned[ii])
+                        foundTarget = True
 
-                         xUnknown = int(x_scanned[ii]) - 1
-                         yUnknown = int(y_scanned[ii])
-                         foundTarget = True
+                    elif int(y_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) + 1] == 1:
 
-                     elif int(y_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) + 1] == 1:
+                        xUnknown = int(x_scanned[ii])
+                        yUnknown = int(y_scanned[ii]) + 1
+                        foundTarget = True
 
-                         xUnknown = int(x_scanned[ii])
-                         yUnknown = int(y_scanned[ii]) + 1
-                         foundTarget = True
+                    elif int(y_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) - 1] == 1:
 
-                     elif int(y_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]),int(y_scanned[ii]) - 1] == 1:
+                        xUnknown = int(x_scanned[ii])
+                        yUnknown = int(y_scanned[ii]) - 1
+                        foundTarget = True
 
-                         xUnknown = int(x_scanned[ii])
-                         yUnknown = int(y_scanned[ii]) - 1
-                         foundTarget = True
 
+                if foundTarget:
 
-                 if foundTarget:
+                    xTarget = int(x_scanned[ii])
+                    yTarget = int(y_scanned[ii])
 
-                     xTarget = int(x_scanned[ii])
-                     yTarget = int(y_scanned[ii])
 
 
-             if xTarget == 0:
+            if xTarget == 0:
 
-                 # search for a target point everywhere, finding an unknown element with adjacent free space
-                 for jj in range(1, xLength):
+                # search for a target point everywhere, finding an unknown element with adjacent free space
+                for jj in range(1, xLength):
 
-                     for kk in range(1, yLength):
+                    for kk in range(1, yLength):
 
-                         if statesMap[jj, kk] == 1:
+                        if statesMap[jj, kk] == 1:
 
-                             if statesMap[jj - 1, kk] == 0:
-                                 xT = jj - 1
-                                 yT = kk
-                                 foundTarget = True
+                            if statesMap[jj - 1, kk] == 0:
+                                xT = jj - 1
+                                yT = kk
+                                foundTarget = True
 
-                             elif statesMap[jj + 1, kk] == 0:
-                                    xG = jj + 1
-                                    yG = kk
-                                    foundGoal = True
+                            elif statesMap[jj + 1, kk] == 0:
+                                xG = jj + 1
+                                yG = kk
+                                foundGoal = True
 
-                             elif statesMap[jj, kk + 1] == 0:
-                                    xG = jj
-                                    yG = kk + 1
-                                    foundGoal = True
+                            elif statesMap[jj, kk + 1] == 0:
+                                xG = jj
+                                yG = kk + 1
+                                foundGoal = True
 
-                             elif statesMap[jj, kk - 1] == 0:
-                                    xG = jj
-                                    yG = kk - 1
-                                    foundGoal = True
+                            elif statesMap[jj, kk - 1] == 0:
+                                xG = jj
+                                yG = kk - 1
+                                foundGoal = True
 
-                             if foundTarget:
+                            if foundTarget:
 
-                                 # compute distance and
-                                 dist = (xRobot - xT)^2 + (yRobot - yT)^2
-                                 if 7 < dist < distmin:
-                                     xUnknown = jj
-                                     yUnknown = kk
-                                     xTarget = xT
-                                     yTarget = yT
-                                     distmin = dist
+                                # compute distance and
+                                dist = (xRobot - xT)^2 + (yRobot - yT)^2
+                                if 7 < dist < distmin:
+                                    xUnknown = jj
+                                    yUnknown = kk
+                                    xTarget = xT
+                                    yTarget = yT
+                                    distmin = dist
 
-                                 foundTarget = False
+                                foundTarget = False
 
-             # if the map is fully explored
-             if xTarget == 0:
-                 fsm = 'navigation_finished'
-             else:
-                 fsm = 'dstar'
+            # if the map is fully explored
+            if xTarget == 0:
+                fsm = 'navigation_finished'
+            else:
+                fsm = 'astar'
 
 
-         ## Manage end of navigation
-         if fsm == 'navigation_finished':
+        ## Manage end of navigation
+        if fsm == 'navigation_finished':
 
-            print('No more accessible points to visit...')
-            print('Final map created')
-            # save('statesMap.mat')
+           print('No more accessible points to visit...')
+           print('Final map created')
+           # save('statesMap.mat')
 
-            # Every unreachable point is considered as an obstacles
-            for j in range(xLength):
-                for k in range(yLength):
-                    if statesMap[j, k] == 1:
-                        statesMap[j, k] = 2
+           # Every unreachable point is considered as an obstacles
+           for j in range(xLength):
+               for k in range(yLength):
+                   if statesMap[j, k] == 1:
+                       statesMap[j, k] = 2
 
-            # Plot of the total map
-            figure(3)
+           # Plot of the total map
+           figure(3)
+           plt.matshow(statesMap)
+           plt.colorbar()
+           plt.show()
+
+           # End the infinite loop
+           p = false
+
+
+        ## Astar path planning
+
+        occupancyGridAstar = np.ones((n,n), dtype=int)
+
+        for j in range(len(xAxis)):
+            for k in range(len(yAxis)):
+                if statesMap[j,k] == 1 or statesMap[j,k] == 2 or statesMap[j,k] == 3:
+                    occupancyGridAstar[j,k] = 10
+                else:
+                    occupancyGridAstar[j,k] = -10
+
+        plt.matshow(occupancyGridAstar)
+        plt.colorbar()
+        plt.show()
+
+        if fsm == 'astar':
+
+            # Astar algorithm implemetation by Peter Corke
+            from astar_python.astar import Astar
+
+            astar = Astar(occupancyGridAstar)
+
+            # print([xTarget,yTarget])
+
+            results = astar.run([xRobot, yRobot], [25,10])
+
+            for i in range(len(results)):
+                for j in range(xLength):
+                    for k in range(yLength):
+                        if results[i] == [j, k]:
+                            statesMap[j, k] = 5
+
+            print(results)
+
             plt.matshow(statesMap)
             plt.colorbar()
             plt.show()
 
-            # End the infinite loop
-            p = false
 
-
-         ## Dstar path planning
-
-         if fsm == 'dstar':
-
-             # Dstar algorithm implemetation by Peter Corke
-             from dstar import dstar
-
-             ds = dstar(occupancyGrid)
-
-             ds.costmap_get()
-
-             da.plan([yTarget, xTarget])
-
-             targetsMatFull = ds.path([yRobot, xRobot])
-
-             if 'targetsMat' in locals():
-                 del targetsMat
-
-             # Elimination of 1 point of the path to avoid too long computations
-             targetsMat[:, 0] = targetsMatFull[::2, 0]
-             targetsMat[:, 1] = targetsMatFull[::2, 1]
-
-             print('targetsMat')
 
 
 
@@ -569,7 +585,7 @@ while True:
 #             sys.exit('Unknown state ' + fsm)
 #
          # Update wheel velocities.
-         h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+        h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
          # What happens if you do not update the velocities?
          # The simulator always considers the last speed you gave it,
@@ -577,11 +593,11 @@ while True:
 
          # Send a Trigger to the simulator: this will run a time step for the physic engine
          # because of the synchronous mode.
-         vrep.simxSynchronousTrigger(clientID)
-         vrep.simxGetPingTime(clientID)
-     except KeyboardInterrupt:
-         cleanup_vrep(vrep, clientID)
-         sys.exit('Stop simulation')
+        vrep.simxSynchronousTrigger(clientID)
+        vrep.simxGetPingTime(clientID)
+    except KeyboardInterrupt:
+        cleanup_vrep(vrep, clientID)
+        sys.exit('Stop simulation')
 
 cleanup_vrep(vrep, clientID)
 print('Simulation has stopped')
