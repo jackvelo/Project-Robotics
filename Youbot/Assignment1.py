@@ -411,7 +411,6 @@ while True:
                         statesMap[j, k] = 2
 
             # Plot of the total map
-            figure(3)
             plt.matshow(statesMap)
             plt.colorbar()
             plt.show()
@@ -426,7 +425,7 @@ while True:
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
                 if statesMap[j, k] == 1 or statesMap[j, k] == 2 or statesMap[j, k] == 3:
-                    occupancyGridAstar[j, k] = 10
+                    occupancyGridAstar[j, k] = 5
                 else:
                     occupancyGridAstar[j, k] = 0
 
@@ -434,16 +433,18 @@ while True:
         plt.colorbar()
         plt.show()
 
+        occupancyGridAstar1 = occupancyGridAstar.tolist()
+
         if fsm == 'astar':
 
             # Astar algorithm implemetation by Peter Corke
             from astar_python.astar import Astar
 
-            astar = Astar(occupancyGridAstar)
+            astar = Astar(occupancyGridAstar1)
 
             # print([xTarget,yTarget])
 
-            results = astar.run([xRobot, yRobot], [xTarget, yTarget])
+            results = astar.run([xRobot, yRobot], [25, 10])
 
             for i in range(len(results)):
                 for j in range(xLength):
