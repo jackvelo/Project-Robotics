@@ -398,7 +398,7 @@ while p:
                 fsm = 'astar'
 
         # Manage end of navigation
-        if fsm == 'navigationFinished':
+        elif fsm == 'navigationFinished':
 
             print('No more accessible points to visit...')
             print('Final map created')
@@ -418,25 +418,26 @@ while p:
             # End the infinite loop
             p = False
 
-        # Astar path planning
+        #
+        # --- Astar path planning ---
+        #
+        elif fsm == 'astar':
 
-        occupancyGridAstar = np.ones((n, n), dtype=int)
+            occupancyGridAstar = np.ones((n, n), dtype=int)
 
-        for j in range(len(xAxis)):
-            for k in range(len(yAxis)):
-                if statesMap[j, k] == 1 or statesMap[j, k] == 2 or statesMap[j, k] == 3:
-                    occupancyGridAstar[j, k] = 5
-                else:
-                    occupancyGridAstar[j, k] = 0
+            for j in range(len(xAxis)):
+                for k in range(len(yAxis)):
+                    if statesMap[j, k] == 1 or statesMap[j, k] == 2 or statesMap[j, k] == 3:
+                        occupancyGridAstar[j, k] = 5
+                    else:
+                        occupancyGridAstar[j, k] = 0
 
-        # plt.matshow(occupancyGridAstar)
-        # plt.colorbar()
-        # plt.show()
+            # plt.matshow(occupancyGridAstar)
+            # plt.colorbar()
+            # plt.show()
 
-        occupancyGridAstar = occupancyGridAstar.transpose()
-        occupancyGridAstar1 = occupancyGridAstar.tolist()
-
-        if fsm == 'astar':
+            occupancyGridAstar = occupancyGridAstar.transpose()
+            occupancyGridAstar1 = occupancyGridAstar.tolist()
 
             # Astar algorithm implemetation by Peter Corke
             from astar_python.astar import Astar
@@ -445,7 +446,7 @@ while p:
 
             # print([xTarget,yTarget])
 
-            results = astar.run([xRobot, yRobot], [xTarget, yTarget])
+            results = astar.run([xRobot, yRobot], [50, 28])#[xTarget, yTarget])
 
             pathMat = statesMap.copy()
 
@@ -463,9 +464,9 @@ while p:
             # print(path)
             # print(results)
 
-            # plt.matshow(pathMat)
-            # plt.colorbar()
-            # plt.show()
+            plt.matshow(pathMat)
+            plt.colorbar()
+            plt.show()
             #
             # plt.matshow(statesMap)
             # plt.colorbar()
@@ -474,27 +475,56 @@ while p:
             # Initialize the index for the path elements
             iPath = 1
             fsm = 'rotate'
+            print('Switching to state: ', fsm)
 
-        # ROTATION
+        # --- ROTATION ---
         #
         #
 
-        if fsm == 'rotate':
+        elif fsm == 'rotate':
 
             # Rotate until the robot has an angle until target point is straight ahead (measured with respect to the world's reference frame).
             # Again, use a proportional controller. In case of overshoot, the angle difference will change sign,
             # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
             # the anguler speed becomes negative).
             # youbotEuler(3) is the rotation around the vertical axis.
-            a = path[iPath, 0] - xRobot
-            b = yRobot - path[iPath, 1]
+            a = path[iPath, 0] - youbotPos[0]
+            b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
+            print(rotationAngle)
 
-            rotateRightVel = angdiff(youbotEuler[2], (math.pi*2))
+            rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
+
 
             # Stop when the robot is at an angle close to rotationAngle
-            if abs(angdiff(youbotEuler[2], (math.pi*2))) < .002:
+            if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.1:
                 rotateRightVel = 0
+                fsm = 'forward'
+                print('Switching to state: ', fsm)
+
+
+        #
+        # --- FORWARD ---
+        #
+
+        elif fsm == 'forward':
+
+            # A speed which is a function of the distance to the destination can also be used. This is useful to avoid
+            # overshooting: with this controller, the speed decreases when the robot approaches the goal.
+            # Here, the goal is to reach y = -4.5.
+            a = path[iPath, 0] - youbotPos[0]
+            b = youbotPos[1] - path[iPath, 1]
+            distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
+            forwBackVel = - 2 * (distance)
+            # distance to goal influences the maximum speed
+
+            # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
+            # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
+            # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
+            # for example).
+            if abs(distance) < .2:
+                forwBackVel = 0  # Stop the robot.
+                iPath = iPath + 1
                 fsm = 'navigationFinished'
                 print('Switching to state: ', fsm)
 
