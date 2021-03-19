@@ -151,9 +151,9 @@ for i in range(int(1./timestep)):
 ##
 ##
 ##
-
+p = True
 # Start the demo.
-while True:
+while p:
     try:  # used when a code can give error --> "try" and "except" at the end give the error explanation
         # Check the connection with the simulator
         if vrep.simxGetConnectionId(clientID) == -1:
@@ -280,9 +280,9 @@ while True:
                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
 
-        plt.matshow(statesMap)
-        plt.colorbar()
-        plt.show()
+        # plt.matshow(statesMap)
+        # plt.colorbar()
+        # plt.show()
 
         # Occupancy grid
 
@@ -295,9 +295,9 @@ while True:
                 else:
                     occupancyGrid[j, k] = 0
 
-        plt.matshow(occupancyGrid)
-        plt.colorbar()
-        plt.show()
+        # plt.matshow(occupancyGrid)
+        # plt.colorbar()
+        # plt.show()
 
         # Search algorithm
         # search for a goal point to visit
@@ -398,7 +398,7 @@ while True:
                 fsm = 'astar'
 
         # Manage end of navigation
-        if fsm == 'navigation_finished':
+        if fsm == 'navigationFinished':
 
             print('No more accessible points to visit...')
             print('Final map created')
@@ -416,7 +416,7 @@ while True:
             plt.show()
 
             # End the infinite loop
-            p = false
+            p = False
 
         # Astar path planning
 
@@ -429,10 +429,11 @@ while True:
                 else:
                     occupancyGridAstar[j, k] = 0
 
-        plt.matshow(occupancyGridAstar)
-        plt.colorbar()
-        plt.show()
+        # plt.matshow(occupancyGridAstar)
+        # plt.colorbar()
+        # plt.show()
 
+        occupancyGridAstar = occupancyGridAstar.transpose()
         occupancyGridAstar1 = occupancyGridAstar.tolist()
 
         if fsm == 'astar':
@@ -444,20 +445,58 @@ while True:
 
             # print([xTarget,yTarget])
 
-            results = astar.run([xRobot, yRobot], [25, 10])
+            results = astar.run([xRobot, yRobot], [xTarget, yTarget])
+
+            pathMat = statesMap.copy()
+
+            path = np.zeros((len(results), 2), dtype=float)
 
             for i in range(len(results)):
+                resultsElem = results[i]
+                path[i, 0] = xAxis[resultsElem[0]]
+                path[i, 1] = yAxis[resultsElem[1]]
                 for j in range(xLength):
                     for k in range(yLength):
-                        if results[i] == [j, k]:
-                            statesMap[j, k] = 5
+                        if resultsElem[0] == j and resultsElem[1] == k:
+                            pathMat[j, k] = 5
 
-            print(results)
+            # print(path)
+            # print(results)
 
-            plt.matshow(statesMap)
-            plt.colorbar()
-            plt.show()
+            # plt.matshow(pathMat)
+            # plt.colorbar()
+            # plt.show()
+            #
+            # plt.matshow(statesMap)
+            # plt.colorbar()
+            # plt.show()
 
+            # Initialize the index for the path elements
+            iPath = 1
+            fsm = 'rotate'
+
+        # ROTATION
+        #
+        #
+
+        if fsm == 'rotate':
+
+            # Rotate until the robot has an angle until target point is straight ahead (measured with respect to the world's reference frame).
+            # Again, use a proportional controller. In case of overshoot, the angle difference will change sign,
+            # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
+            # the anguler speed becomes negative).
+            # youbotEuler(3) is the rotation around the vertical axis.
+            a = path[iPath, 0] - xRobot
+            b = yRobot - path[iPath, 1]
+            rotationAngle = math.atan2(a, b)
+
+            rotateRightVel = angdiff(youbotEuler[2], (math.pi*2))
+
+            # Stop when the robot is at an angle close to rotationAngle
+            if abs(angdiff(youbotEuler[2], (math.pi*2))) < .002:
+                rotateRightVel = 0
+                fsm = 'navigationFinished'
+                print('Switching to state: ', fsm)
 
 
 
@@ -568,22 +607,22 @@ while True:
 #                 print('Switching to state: ', fsm)
 #
 #
-#         elif fsm == 'finished':
-#             print('Finish')
-#             time.sleep(3)
-#             break
-#         else:
-#             sys.exit('Unknown state ' + fsm)
+        elif fsm == 'finished':
+            print('Finish')
+            time.sleep(3)
+            break
+        else:
+            sys.exit('Unknown state ' + fsm)
 #
-         # Update wheel velocities.
+        # Update wheel velocities.
         h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
-         # What happens if you do not update the velocities?
-         # The simulator always considers the last speed you gave it,
-         # until you set a new velocity.
+        # What happens if you do not update the velocities?
+        # The simulator always considers the last speed you gave it,
+        # until you set a new velocity.
 
-         # Send a Trigger to the simulator: this will run a time step for the physic engine
-         # because of the synchronous mode.
+        # Send a Trigger to the simulator: this will run a time step for the physic engine
+        # because of the synchronous mode.
         vrep.simxSynchronousTrigger(clientID)
         vrep.simxGetPingTime(clientID)
     except KeyboardInterrupt:
