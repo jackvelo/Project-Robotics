@@ -352,9 +352,9 @@ while p:
             if xTarget == 0:
 
                 # search for a target point everywhere, finding an unknown element with adjacent free space
-                for jj in range(1, xLength):
+                for jj in range(1, xLength - 1):
 
-                    for kk in range(1, yLength):
+                    for kk in range(1, yLength - 1):
 
                         if statesMap[jj, kk] == 1:
 
@@ -509,24 +509,29 @@ while p:
 
         elif fsm == 'forward':
 
-            # A speed which is a function of the distance to the destination can also be used. This is useful to avoid
-            # overshooting: with this controller, the speed decreases when the robot approaches the goal.
-            # Here, the goal is to reach y = -4.5.
-            a = path[iPath, 0] - youbotPos[0]
-            b = youbotPos[1] - path[iPath, 1]
-            distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
-            forwBackVel = - 2 * (distance)
-            # distance to goal influences the maximum speed
-
-            # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
-            # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
-            # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
-            # for example).
-            if abs(distance) < .2:
-                forwBackVel = 0  # Stop the robot.
-                iPath = iPath + 1
-                fsm = 'navigationFinished'
+            if iPath > 0.8 * len(path):
+                fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
+            else:
+                # A speed which is a function of the distance to the destination can also be used. This is useful to avoid
+                # overshooting: with this controller, the speed decreases when the robot approaches the goal.
+                # Here, the goal is to reach y = -4.5.
+                a = path[iPath, 0] - youbotPos[0]
+                b = youbotPos[1] - path[iPath, 1]
+                distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
+                forwBackVel = - 2 * (distance)
+                # distance to goal influences the maximum speed
+
+                # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
+                # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
+                # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
+                # for example).
+                if abs(distance) < .2:
+                    forwBackVel = 0  # Stop the robot.
+                    iPath = iPath + 1
+                    fsm = 'rotate'
+                    print('Switching to state: ', fsm)
+
 
 
 
