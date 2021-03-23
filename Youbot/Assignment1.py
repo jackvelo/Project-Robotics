@@ -131,7 +131,7 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
-fsm = 'searchAlgo'
+fsm = 'initialRotate'
 print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
@@ -299,14 +299,26 @@ while p:
         # plt.colorbar()
         # plt.show()
 
+        # Initial rotation
+
+        if fsm == 'initialRotate':
+
+            rotateRightVel = angdiff(youbotEuler[2], math.pi*2)
+
+            # Stop when the robot is at an angle close to rotationAngle
+            if abs(angdiff(youbotEuler[2], math.pi*2)) < 0.00001:
+                rotateRightVel = 0
+                fsm = 'searchAlgo'
+                print('Switching to state: ', fsm)
+
         # Search algorithm
         # search for a goal point to visit
 
         # Apply the state machine.
-        if fsm == 'searchAlgo':
+        elif fsm == 'searchAlgo':
 
             # initialize variables
-            distmin = 100
+            distMax = 50
             xTarget = 0
             yTarget = 0
             foundTarget = False
@@ -346,8 +358,18 @@ while p:
 
                 if foundTarget:
 
-                    xTarget = int(x_scanned[ii])
-                    yTarget = int(y_scanned[ii])
+                    xT = int(x_scanned[ii])
+                    yT = int(y_scanned[ii])
+
+                    dist = math.sqrt((xRobot - xT)**2 + (yRobot - yT)**2)
+
+                    if 3 < dist < distMax:
+                        xTarget = xT
+                        yTarget = yT
+                        distMax = dist
+                        print(dist)
+
+                    foundTarget = False
 
             if xTarget == 0:
 
@@ -364,36 +386,56 @@ while p:
                                 foundTarget = True
 
                             elif statesMap[jj + 1, kk] == 0:
-                                xG = jj + 1
-                                yG = kk
-                                foundGoal = True
+                                xT = jj + 1
+                                yT = kk
+                                foundTarget = True
+
+                            elif statesMap[jj - 1, kk + 1] == 0:
+                                xT = jj - 1
+                                yT = kk + 1
+                                foundTarget = True
 
                             elif statesMap[jj, kk + 1] == 0:
-                                xG = jj
-                                yG = kk + 1
-                                foundGoal = True
+                                xT = jj
+                                yT = kk + 1
+                                foundTarget = True
+
+                            elif statesMap[jj + 1, kk + 1] == 0:
+                                xT = jj + 1
+                                yT = kk + 1
+                                foundTarget = True
+
+                            elif statesMap[jj - 1, kk - 1] == 0:
+                                xT = jj - 1
+                                yT = kk - 1
+                                foundTarget = True
 
                             elif statesMap[jj, kk - 1] == 0:
-                                xG = jj
-                                yG = kk - 1
-                                foundGoal = True
+                                xT = jj
+                                yT = kk - 1
+                                foundTarget = True
+
+                            elif statesMap[jj + 1, kk - 1] == 0:
+                                xT = jj + 1
+                                yT = kk - 1
+                                foundTarget = True
 
                             if foundTarget:
 
                                 # compute distance and
-                                dist = (xRobot - xT) ^ 2 + (yRobot - yT) ^ 2
-                                if 7 < dist < distmin:
+                                dist = math.sqrt((xRobot - xT)**2 + (yRobot - yT)**2)
+                                if 3 < dist < distMax:
                                     xUnknown = jj
                                     yUnknown = kk
                                     xTarget = xT
                                     yTarget = yT
-                                    distmin = dist
+                                    distMax = dist
 
                                 foundTarget = False
 
             # if the map is fully explored
             if xTarget == 0:
-                fsm = 'navigation_finished'
+                fsm = 'navigationFinished'
             else:
                 fsm = 'astar'
 
@@ -421,6 +463,7 @@ while p:
         #
         # --- Astar path planning ---
         #
+
         elif fsm == 'astar':
 
             occupancyGridAstar = np.ones((n, n), dtype=int)
@@ -428,9 +471,9 @@ while p:
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
                     if statesMap[j, k] == 1 or statesMap[j, k] == 2 or statesMap[j, k] == 3:
-                        occupancyGridAstar[j, k] = 5
+                        occupancyGridAstar[j, k] = 1000
                     else:
-                        occupancyGridAstar[j, k] = 0
+                        occupancyGridAstar[j, k] = -1
 
             # plt.matshow(occupancyGridAstar)
             # plt.colorbar()
@@ -446,20 +489,28 @@ while p:
 
             # print([xTarget,yTarget])
 
-            results = astar.run([xRobot, yRobot], [50, 28])#[xTarget, yTarget])
+            results = astar.run([xRobot, yRobot], [xTarget, yTarget])
 
             pathMat = statesMap.copy()
 
             path = np.zeros((len(results), 2), dtype=float)
 
-            for i in range(len(results)):
-                resultsElem = results[i]
+            pathLen = int(len(results)/2)
+
+            for i in range(pathLen):
+                resultsElem = results[2*i]
                 path[i, 0] = xAxis[resultsElem[0]]
                 path[i, 1] = yAxis[resultsElem[1]]
                 for j in range(xLength):
                     for k in range(yLength):
                         if resultsElem[0] == j and resultsElem[1] == k:
                             pathMat[j, k] = 5
+
+            finalResult = results[-1]
+            path[-1, 0] = xAxis[finalResult[0]]
+            path[-1, 1] = yAxis[finalResult[1]]
+
+            pathMat[finalResult[0], finalResult[1]] = 5
 
             # print(path)
             # print(results)
@@ -491,10 +542,17 @@ while p:
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
-            print(rotationAngle)
+
+            # if -math.pi - 0.2 < rotationAngle < -math.pi + 0.2:
+            #     rotationAngle = rotationAngle + math.pi*2
 
             rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
 
+            if rotateRightVel > math.pi:
+                rotateRightVel = rotateRightVel - math.pi*2
+
+            if rotateRightVel < - math.pi:
+                rotateRightVel = rotateRightVel + math.pi*2
 
             # Stop when the robot is at an angle close to rotationAngle
             if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.1:
@@ -509,7 +567,7 @@ while p:
 
         elif fsm == 'forward':
 
-            if iPath > 0.8 * len(path):
+            if iPath >= pathLen:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
             else:
@@ -519,7 +577,7 @@ while p:
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
                 distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
-                forwBackVel = - 2 * (distance)
+                forwBackVel = - 5 * (distance)
                 # distance to goal influences the maximum speed
 
                 # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
