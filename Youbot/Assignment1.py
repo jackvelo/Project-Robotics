@@ -131,7 +131,7 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
-fsm = 'initialRotate'
+fsm = 'searchAlgo'
 print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
@@ -279,6 +279,60 @@ while p:
                     and 0 <= yObstacle[i] - 1 < len(yAxis):
                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
+
+        for j in range(len(xAxis)):
+            for k in range(len(yAxis)):
+                if statesMap[j, k] == 3:
+                    if statesMap[j - 1, k - 1] == 0:
+                        statesMap[j - 1, k - 1] = 4
+
+                    if statesMap[j, k - 1] == 0:
+                        statesMap[j, k - 1] = 4
+
+                    if statesMap[j + 1, k - 1] == 0:
+                        statesMap[j + 1, k - 1] = 4
+
+                    if statesMap[j - 1, k] == 0:
+                        statesMap[j - 1, k] = 4
+
+                    if statesMap[j + 1, k] == 0:
+                        statesMap[j + 1, k] = 4
+
+                    if statesMap[j - 1, k + 1] == 0:
+                        statesMap[j - 1, k + 1] = 4
+
+                    if statesMap[j, k + 1] == 0:
+                        statesMap[j, k + 1] = 4
+
+                    if statesMap[j + 1, k + 1] == 0:
+                        statesMap[j + 1, k + 1] = 4
+
+        for j in range(len(xAxis)):
+            for k in range(len(yAxis)):
+                if statesMap[j, k] == 4:
+                    if statesMap[j - 1, k - 1] == 0:
+                        statesMap[j - 1, k - 1] = 5
+
+                    if statesMap[j, k - 1] == 0:
+                        statesMap[j, k - 1] = 5
+
+                    if statesMap[j + 1, k - 1] == 0:
+                        statesMap[j + 1, k - 1] = 5
+
+                    if statesMap[j - 1, k] == 0:
+                        statesMap[j - 1, k] = 5
+
+                    if statesMap[j + 1, k] == 0:
+                        statesMap[j + 1, k] = 5
+
+                    if statesMap[j - 1, k + 1] == 0:
+                        statesMap[j - 1, k + 1] = 5
+
+                    if statesMap[j, k + 1] == 0:
+                        statesMap[j, k + 1] = 5
+
+                    if statesMap[j + 1, k + 1] == 0:
+                        statesMap[j + 1, k + 1] = 5
 
         # plt.matshow(statesMap)
         # plt.colorbar()
@@ -470,8 +524,18 @@ while p:
 
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
-                    if statesMap[j, k] == 1 or statesMap[j, k] == 2 or statesMap[j, k] == 3:
+                    if statesMap[j, k] == 1 or statesMap[j, k] == 2:
                         occupancyGridAstar[j, k] = 1000
+
+                    elif statesMap[j, k] == 3:
+                        occupancyGridAstar[j, k] = 750
+
+                    elif statesMap[j, k] == 4:
+                        occupancyGridAstar[j, k] = 500
+
+                    elif statesMap[j, k] == 5:
+                        occupancyGridAstar[j, k] = 400
+
                     else:
                         occupancyGridAstar[j, k] = -1
 
@@ -495,29 +559,20 @@ while p:
 
             path = np.zeros((len(results), 2), dtype=float)
 
-            pathLen = int(len(results)/2)
+            # pathLen = int(len(results)/2)
 
-            for i in range(pathLen):
-                resultsElem = results[2*i]
+            for i in range(len(results)):
+                resultsElem = results[i]
                 path[i, 0] = xAxis[resultsElem[0]]
                 path[i, 1] = yAxis[resultsElem[1]]
                 for j in range(xLength):
                     for k in range(yLength):
                         if resultsElem[0] == j and resultsElem[1] == k:
-                            pathMat[j, k] = 5
+                            pathMat[j, k] = 10
 
-            finalResult = results[-1]
-            path[-1, 0] = xAxis[finalResult[0]]
-            path[-1, 1] = yAxis[finalResult[1]]
-
-            pathMat[finalResult[0], finalResult[1]] = 5
-
-            # print(path)
-            # print(results)
-
-            plt.matshow(pathMat)
-            plt.colorbar()
-            plt.show()
+            # plt.matshow(pathMat)
+            # plt.colorbar()
+            # plt.show()
             #
             # plt.matshow(statesMap)
             # plt.colorbar()
@@ -543,9 +598,6 @@ while p:
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
 
-            # if -math.pi - 0.2 < rotationAngle < -math.pi + 0.2:
-            #     rotationAngle = rotationAngle + math.pi*2
-
             rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
 
             if rotateRightVel > math.pi:
@@ -559,15 +611,12 @@ while p:
                 rotateRightVel = 0
                 fsm = 'forward'
                 print('Switching to state: ', fsm)
-
-
         #
         # --- FORWARD ---
         #
-
         elif fsm == 'forward':
 
-            if iPath >= pathLen:
+            if iPath >= len(results) - 1:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
             else:
@@ -577,7 +626,7 @@ while p:
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
                 distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
-                forwBackVel = - 5 * (distance)
+                forwBackVel = - 5
                 # distance to goal influences the maximum speed
 
                 # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
