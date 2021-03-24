@@ -132,6 +132,7 @@ h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
 fsm = 'searchAlgo'
+counterSearchAlgo = 0
 print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
@@ -140,17 +141,7 @@ for i in range(int(1./timestep)):
     vrep.simxSynchronousTrigger(clientID)
     vrep.simxGetPingTime(clientID)
 
-##
-# PROVE
-##
-# print(youbotPos[0])
-# print(youbotPos[1])
-# print(youbotPos[2])
-# A = np.array([[youbotPos[0]], [youbotPos[1]]]) * 2
-# print(A)
-##
-##
-##
+
 p = True
 # Start the demo.
 while p:
@@ -280,59 +271,61 @@ while p:
                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
 
-        for j in range(len(xAxis)):
-            for k in range(len(yAxis)):
-                if statesMap[j, k] == 3:
-                    if statesMap[j - 1, k - 1] == 0:
-                        statesMap[j - 1, k - 1] = 4
-
-                    if statesMap[j, k - 1] == 0:
-                        statesMap[j, k - 1] = 4
-
-                    if statesMap[j + 1, k - 1] == 0:
-                        statesMap[j + 1, k - 1] = 4
-
-                    if statesMap[j - 1, k] == 0:
-                        statesMap[j - 1, k] = 4
-
-                    if statesMap[j + 1, k] == 0:
-                        statesMap[j + 1, k] = 4
-
-                    if statesMap[j - 1, k + 1] == 0:
-                        statesMap[j - 1, k + 1] = 4
-
-                    if statesMap[j, k + 1] == 0:
-                        statesMap[j, k + 1] = 4
-
-                    if statesMap[j + 1, k + 1] == 0:
-                        statesMap[j + 1, k + 1] = 4
+        statesMapCopy = statesMap.copy()
 
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
-                if statesMap[j, k] == 4:
-                    if statesMap[j - 1, k - 1] == 0:
-                        statesMap[j - 1, k - 1] = 5
+                if statesMapCopy[j, k] == 3:
+                    if statesMapCopy[j - 1, k - 1] == 0:
+                        statesMapCopy[j - 1, k - 1] = 4
 
-                    if statesMap[j, k - 1] == 0:
-                        statesMap[j, k - 1] = 5
+                    if statesMapCopy[j, k - 1] == 0:
+                        statesMapCopy[j, k - 1] = 4
 
-                    if statesMap[j + 1, k - 1] == 0:
-                        statesMap[j + 1, k - 1] = 5
+                    if statesMapCopy[j + 1, k - 1] == 0:
+                        statesMapCopy[j + 1, k - 1] = 4
 
-                    if statesMap[j - 1, k] == 0:
-                        statesMap[j - 1, k] = 5
+                    if statesMapCopy[j - 1, k] == 0:
+                        statesMapCopy[j - 1, k] = 4
 
-                    if statesMap[j + 1, k] == 0:
-                        statesMap[j + 1, k] = 5
+                    if statesMapCopy[j + 1, k] == 0:
+                        statesMapCopy[j + 1, k] = 4
 
-                    if statesMap[j - 1, k + 1] == 0:
-                        statesMap[j - 1, k + 1] = 5
+                    if statesMapCopy[j - 1, k + 1] == 0:
+                        statesMapCopy[j - 1, k + 1] = 4
 
-                    if statesMap[j, k + 1] == 0:
-                        statesMap[j, k + 1] = 5
+                    if statesMapCopy[j, k + 1] == 0:
+                        statesMapCopy[j, k + 1] = 4
 
-                    if statesMap[j + 1, k + 1] == 0:
-                        statesMap[j + 1, k + 1] = 5
+                    if statesMapCopy[j + 1, k + 1] == 0:
+                        statesMapCopy[j + 1, k + 1] = 4
+
+        for j in range(len(xAxis)):
+            for k in range(len(yAxis)):
+                if statesMapCopy[j, k] == 4:
+                    if statesMapCopy[j - 1, k - 1] == 0:
+                        statesMapCopy[j - 1, k - 1] = 5
+
+                    if statesMapCopy[j, k - 1] == 0:
+                        statesMapCopy[j, k - 1] = 5
+
+                    if statesMapCopy[j + 1, k - 1] == 0:
+                        statesMapCopy[j + 1, k - 1] = 5
+
+                    if statesMapCopy[j - 1, k] == 0:
+                        statesMapCopy[j - 1, k] = 5
+
+                    if statesMapCopy[j + 1, k] == 0:
+                        statesMapCopy[j + 1, k] = 5
+
+                    if statesMapCopy[j - 1, k + 1] == 0:
+                        statesMapCopy[j - 1, k + 1] = 5
+
+                    if statesMapCopy[j, k + 1] == 0:
+                        statesMapCopy[j, k + 1] = 5
+
+                    if statesMapCopy[j + 1, k + 1] == 0:
+                        statesMapCopy[j + 1, k + 1] = 5
 
         # plt.matshow(statesMap)
         # plt.colorbar()
@@ -371,6 +364,8 @@ while p:
         # Apply the state machine.
         elif fsm == 'searchAlgo':
 
+            counterSearchAlgo += 1
+
             # initialize variables
             distMax = 50
             xTarget = 0
@@ -384,27 +379,27 @@ while p:
             y_scanned = np.round(y_scanned)
 
             for ii in range(len(x_scanned)):
-                if statesMap[int(x_scanned[ii]), int(y_scanned[ii])] == 0:
+                if statesMapCopy[int(x_scanned[ii]), int(y_scanned[ii])] == 0:
 
-                    if int(x_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]) + 1, int(y_scanned[ii])] == 1:
+                    if int(x_scanned[ii]) + 1 <= n and statesMapCopy[int(x_scanned[ii]) + 1, int(y_scanned[ii])] == 1:
 
                         xUnknown = int(x_scanned[ii]) + 1
                         yUnknown = int(y_scanned[ii])
                         foundTarget = True
 
-                    elif int(x_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]) - 1, int(y_scanned[ii])] == 1:
+                    elif int(x_scanned[ii]) - 1 <= n and statesMapCopy[int(x_scanned[ii]) - 1, int(y_scanned[ii])] == 1:
 
                         xUnknown = int(x_scanned[ii]) - 1
                         yUnknown = int(y_scanned[ii])
                         foundTarget = True
 
-                    elif int(y_scanned[ii]) + 1 <= n and statesMap[int(x_scanned[ii]), int(y_scanned[ii]) + 1] == 1:
+                    elif int(y_scanned[ii]) + 1 <= n and statesMapCopy[int(x_scanned[ii]), int(y_scanned[ii]) + 1] == 1:
 
                         xUnknown = int(x_scanned[ii])
                         yUnknown = int(y_scanned[ii]) + 1
                         foundTarget = True
 
-                    elif int(y_scanned[ii]) - 1 <= n and statesMap[int(x_scanned[ii]), int(y_scanned[ii]) - 1] == 1:
+                    elif int(y_scanned[ii]) - 1 <= n and statesMapCopy[int(x_scanned[ii]), int(y_scanned[ii]) - 1] == 1:
 
                         xUnknown = int(x_scanned[ii])
                         yUnknown = int(y_scanned[ii]) - 1
@@ -432,44 +427,44 @@ while p:
 
                     for kk in range(1, yLength - 1):
 
-                        if statesMap[jj, kk] == 1:
+                        if statesMapCopy[jj, kk] == 1:
 
-                            if statesMap[jj - 1, kk] == 0:
+                            if statesMapCopy[jj - 1, kk] == 0:
                                 xT = jj - 1
                                 yT = kk
                                 foundTarget = True
 
-                            elif statesMap[jj + 1, kk] == 0:
+                            elif statesMapCopy[jj + 1, kk] == 0:
                                 xT = jj + 1
                                 yT = kk
                                 foundTarget = True
 
-                            elif statesMap[jj - 1, kk + 1] == 0:
+                            elif statesMapCopy[jj - 1, kk + 1] == 0:
                                 xT = jj - 1
                                 yT = kk + 1
                                 foundTarget = True
 
-                            elif statesMap[jj, kk + 1] == 0:
+                            elif statesMapCopy[jj, kk + 1] == 0:
                                 xT = jj
                                 yT = kk + 1
                                 foundTarget = True
 
-                            elif statesMap[jj + 1, kk + 1] == 0:
+                            elif statesMapCopy[jj + 1, kk + 1] == 0:
                                 xT = jj + 1
                                 yT = kk + 1
                                 foundTarget = True
 
-                            elif statesMap[jj - 1, kk - 1] == 0:
+                            elif statesMapCopy[jj - 1, kk - 1] == 0:
                                 xT = jj - 1
                                 yT = kk - 1
                                 foundTarget = True
 
-                            elif statesMap[jj, kk - 1] == 0:
+                            elif statesMapCopy[jj, kk - 1] == 0:
                                 xT = jj
                                 yT = kk - 1
                                 foundTarget = True
 
-                            elif statesMap[jj + 1, kk - 1] == 0:
+                            elif statesMapCopy[jj + 1, kk - 1] == 0:
                                 xT = jj + 1
                                 yT = kk - 1
                                 foundTarget = True
@@ -486,7 +481,6 @@ while p:
                                     distMax = dist
 
                                 foundTarget = False
-
             # if the map is fully explored
             if xTarget == 0:
                 fsm = 'navigationFinished'
@@ -511,6 +505,10 @@ while p:
             plt.colorbar()
             plt.show()
 
+            plt.matshow(occupancyGridAstar)
+            plt.colorbar()
+            plt.show()
+
             # End the infinite loop
             p = False
 
@@ -524,24 +522,21 @@ while p:
 
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
-                    if statesMap[j, k] == 1 or statesMap[j, k] == 2:
+                    if statesMapCopy[j, k] == 1 or statesMapCopy[j, k] == 2:
                         occupancyGridAstar[j, k] = 1000
 
-                    elif statesMap[j, k] == 3:
+                    elif statesMapCopy[j, k] == 3:
                         occupancyGridAstar[j, k] = 750
 
-                    elif statesMap[j, k] == 4:
+                    elif statesMapCopy[j, k] == 4:
                         occupancyGridAstar[j, k] = 500
 
-                    elif statesMap[j, k] == 5:
+                    elif statesMapCopy[j, k] == 5:
                         occupancyGridAstar[j, k] = 400
 
                     else:
                         occupancyGridAstar[j, k] = -1
 
-            # plt.matshow(occupancyGridAstar)
-            # plt.colorbar()
-            # plt.show()
 
             occupancyGridAstar = occupancyGridAstar.transpose()
             occupancyGridAstar1 = occupancyGridAstar.tolist()
@@ -557,22 +552,37 @@ while p:
 
             pathMat = statesMap.copy()
 
-            path = np.zeros((len(results), 2), dtype=float)
+            pathLen = int(len(results)/5)
 
-            # pathLen = int(len(results)/2)
+            path = np.zeros((pathLen + 2, 2), dtype=float)
 
-            for i in range(len(results)):
-                resultsElem = results[i]
+            for i in range(pathLen):
+                resultsElem = results[5*i]
                 path[i, 0] = xAxis[resultsElem[0]]
                 path[i, 1] = yAxis[resultsElem[1]]
                 for j in range(xLength):
                     for k in range(yLength):
                         if resultsElem[0] == j and resultsElem[1] == k:
-                            pathMat[j, k] = 10
+                            pathMat[j, k] = 5
 
-            # plt.matshow(pathMat)
-            # plt.colorbar()
-            # plt.show()
+            resultsElem1 = results[-1]
+            resultsElem2 = results[-2]
+            # path = np.vstack((path, resultsElem1))
+            # path = np.vstack((path, resultsElem2))
+            path[-1, 0] = xAxis[resultsElem1[0]]
+            path[-1, 1] = yAxis[resultsElem1[1]]
+            path[-2, 0] = xAxis[resultsElem2[0]]
+            path[-2, 1] = yAxis[resultsElem2[1]]
+
+            pathMat[resultsElem1[0], resultsElem1[1]] = 5
+            pathMat[resultsElem2[0], resultsElem2[1]] = 5
+
+
+            plt.close()
+            plt.matshow(pathMat)
+            plt.colorbar()
+            plt.show(block=False)
+            plt.pause(.001)
             #
             # plt.matshow(statesMap)
             # plt.colorbar()
@@ -594,6 +604,10 @@ while p:
             # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
             # the anguler speed becomes negative).
             # youbotEuler(3) is the rotation around the vertical axis.
+            if iPath >= len(path)-1:
+                fsm = 'searchAlgo'
+                print('Switching to state: ', fsm)
+
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
@@ -616,7 +630,7 @@ while p:
         #
         elif fsm == 'forward':
 
-            if iPath >= len(results) - 1:
+            if iPath >= len(path)-1:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
             else:
@@ -633,7 +647,7 @@ while p:
                 # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
                 # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
                 # for example).
-                if abs(distance) < .2:
+                if abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
                     fsm = 'rotate'
