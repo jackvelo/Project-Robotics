@@ -487,6 +487,7 @@ while p:
             else:
                 fsm = 'astar'
 
+
         # Manage end of navigation
         elif fsm == 'navigationFinished':
 
@@ -502,10 +503,6 @@ while p:
 
             # Plot of the total map
             plt.matshow(statesMap)
-            plt.colorbar()
-            plt.show()
-
-            plt.matshow(occupancyGridAstar)
             plt.colorbar()
             plt.show()
 
@@ -577,12 +574,23 @@ while p:
             pathMat[resultsElem1[0], resultsElem1[1]] = 5
             pathMat[resultsElem2[0], resultsElem2[1]] = 5
 
+            if counterSearchAlgo == 10:
+                plt.close()
 
             plt.close()
             plt.matshow(pathMat)
             plt.colorbar()
             plt.show(block=False)
             plt.pause(.001)
+
+            if counterSearchAlgo == 9:
+                plt.matshow(occupancyGridAstar.transpose())
+                plt.colorbar()
+                plt.show(block=False)
+                plt.pause(.001)
+
+
+
             #
             # plt.matshow(statesMap)
             # plt.colorbar()
