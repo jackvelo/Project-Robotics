@@ -14,6 +14,7 @@ import time
 import math
 import numpy as np
 import sys
+import time
 
 from cleanup_vrep import cleanup_vrep
 from vrchk import vrchk
@@ -141,12 +142,15 @@ for i in range(int(1./timestep)):
     vrep.simxSynchronousTrigger(clientID)
     vrep.simxGetPingTime(clientID)
 
+timing = []
+counter = 0
 
 p = True
 # Start the demo.
 while p:
     try:  # used when a code can give error --> "try" and "except" at the end give the error explanation
         # Check the connection with the simulator
+        start = time.time()
         if vrep.simxGetConnectionId(clientID) == -1:
             sys.exit('Lost connection to remote API.')
 
@@ -346,23 +350,11 @@ while p:
         # plt.colorbar()
         # plt.show()
 
-        # Initial rotation
-
-        if fsm == 'initialRotate':
-
-            rotateRightVel = angdiff(youbotEuler[2], math.pi*2)
-
-            # Stop when the robot is at an angle close to rotationAngle
-            if abs(angdiff(youbotEuler[2], math.pi*2)) < 0.00001:
-                rotateRightVel = 0
-                fsm = 'searchAlgo'
-                print('Switching to state: ', fsm)
-
         # Search algorithm
         # search for a goal point to visit
 
         # Apply the state machine.
-        elif fsm == 'searchAlgo':
+        if fsm == 'searchAlgo':
 
             counterSearchAlgo += 1
 
@@ -506,6 +498,19 @@ while p:
             plt.colorbar()
             plt.show()
 
+            print(timing)
+            print(max(timing))
+            print(min(timing))
+
+            n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
+
+            plt.grid(axis='y', alpha=0.75)
+            plt.xlabel('Time [s]')
+            plt.ylabel('Number of loops')
+            maxTime = n.max()
+            plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
+            plt.show()
+
             # End the infinite loop
             p = False
 
@@ -633,6 +638,7 @@ while p:
                 rotateRightVel = 0
                 fsm = 'forward'
                 print('Switching to state: ', fsm)
+
         #
         # --- FORWARD ---
         #
@@ -789,9 +795,16 @@ while p:
         # because of the synchronous mode.
         vrep.simxSynchronousTrigger(clientID)
         vrep.simxGetPingTime(clientID)
+        if counter > 10:
+            end = time.time()
+            timing.append(end-start)
+        counter += 1
+
     except KeyboardInterrupt:
         cleanup_vrep(vrep, clientID)
         sys.exit('Stop simulation')
 
+
 cleanup_vrep(vrep, clientID)
 print('Simulation has stopped')
+
