@@ -512,14 +512,6 @@ while p:
             maxTime = n.max()
             plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
 
-            y, x, _ = plt.hist(timing)
-            print(x.max())
-            print(x.min())
-            patches[0].set_color('fuchsia')
-            patches[-1].set_color('fuchsia')
-
-            print(n)
-
             plt.show()
 
             # End the infinite loop
