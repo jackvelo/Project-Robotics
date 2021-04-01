@@ -480,13 +480,11 @@ while p:
             else:
                 fsm = 'astar'
 
-
         # --- Manage end of navigation ---
         elif fsm == 'navigationFinished':
 
             print('No more accessible points to visit...')
             print('Final map created')
-            # save('statesMap.mat')
 
             # Every unreachable point is considered as an obstacles
             for j in range(xLength):
@@ -495,14 +493,16 @@ while p:
                         statesMap[j, k] = 2
 
             # Plot of the total map
+            plt.close()
             plt.matshow(statesMap)
             plt.colorbar()
             plt.show()
 
             # Plot the loop time as a histogram
-            print(timing)
-            print(max(timing))
-            print(min(timing))
+
+            # print(timing)
+            # print(max(timing))
+            # print(min(timing))
 
             n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
 
@@ -511,6 +511,15 @@ while p:
             plt.ylabel('Number of loops')
             maxTime = n.max()
             plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
+
+            y, x, _ = plt.hist(timing)
+            print(x.max())
+            print(x.min())
+            patches[0].set_color('fuchsia')
+            patches[-1].set_color('fuchsia')
+
+            print(n)
+
             plt.show()
 
             # End the infinite loop
