@@ -148,7 +148,7 @@ counter = 0
 p = True
 # Start the demo.
 while p:
-    try:  # used when a code can give error --> "try" and "except" at the end give the error explanation
+    try:
         # Check the connection with the simulator
         start = time.time()
         if vrep.simxGetConnectionId(clientID) == -1:
@@ -164,13 +164,12 @@ while p:
         xRobot = round((youbotPos[0] + 7.5)/resolution)
         yRobot = round((youbotPos[1] + 7.5)/resolution)
 
-        # Drawing the map initialization ##
+        # --- Drawing the map initialization ---
         #
         # Get data from the hokuyo - return empty if data is not captured
         rotangle = youbotEuler[2] - math.pi/2
         hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
         # 0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
-        # print(hokuyoPos)
 
         # Determine the position of the Hokuyo with global coordinates (world reference frame).
         from trans_rot_matrix import trans_rot_matrix
@@ -180,7 +179,7 @@ while p:
         vrchk(vrep, res)
         # scanned_points is a 6xN matrix, where rows 1 and 4 represents coordinate x,
         # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
-        # we need to concatenate row 1 and 4. This is done on the following lines of code
+        # we need to concatenate row 1 and 4. This is done in the following lines of code
 
         # Free space points
         from matplotlib.path import Path
@@ -232,6 +231,7 @@ while p:
         xObstacle = np.round(xObstacle)
         yObstacle = np.round(yObstacle)
 
+        # assigning state 2 to the obstacles and state 3 to the points adjacent to the obstacles
         for i in range(len(xObstacle)):
             statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
 
@@ -275,8 +275,10 @@ while p:
                 if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
                     statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
 
+        # a copy of the statesMap is realized to leave the statesMap neater
         statesMapCopy = statesMap.copy()
 
+        # assigning state 4 to the points adjacent to the state 3 points
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
                 if statesMapCopy[j, k] == 3:
@@ -304,6 +306,7 @@ while p:
                     if statesMapCopy[j + 1, k + 1] == 0:
                         statesMapCopy[j + 1, k + 1] = 4
 
+        # assigning state 5 to the points adjacent to the state 4 points
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
                 if statesMapCopy[j, k] == 4:
@@ -331,26 +334,22 @@ while p:
                     if statesMapCopy[j + 1, k + 1] == 0:
                         statesMapCopy[j + 1, k + 1] = 5
 
-        # plt.matshow(statesMap)
-        # plt.colorbar()
-        # plt.show()
+        # # Occupancy grid
+        #
+        # occupancyGrid = np.ones((n, n), dtype=int)
+        #
+        # for j in range(len(xAxis)):
+        #     for k in range(len(yAxis)):
+        #         if statesMap[j, k] == 2 or statesMap[j, k] == 3:
+        #             occupancyGrid[j, k] = 1
+        #         else:
+        #             occupancyGrid[j, k] = 0
+        #
+        # # plt.matshow(occupancyGrid)
+        # # plt.colorbar()
+        # # plt.show()
 
-        # Occupancy grid
-
-        occupancyGrid = np.ones((n, n), dtype=int)
-
-        for j in range(len(xAxis)):
-            for k in range(len(yAxis)):
-                if statesMap[j, k] == 2 or statesMap[j, k] == 3:
-                    occupancyGrid[j, k] = 1
-                else:
-                    occupancyGrid[j, k] = 0
-
-        # plt.matshow(occupancyGrid)
-        # plt.colorbar()
-        # plt.show()
-
-        # Search algorithm
+        # --- Search algorithm ---
         # search for a goal point to visit
 
         # Apply the state machine.
@@ -404,6 +403,7 @@ while p:
 
                     dist = math.sqrt((xRobot - xT)**2 + (yRobot - yT)**2)
 
+                    # minimum and maximum threshold for the target
                     if 3 < dist < distMax:
                         xTarget = xT
                         yTarget = yT
@@ -463,7 +463,7 @@ while p:
 
                             if foundTarget:
 
-                                # compute distance and
+                                # compute distance and threshold
                                 dist = math.sqrt((xRobot - xT)**2 + (yRobot - yT)**2)
                                 if 3 < dist < distMax:
                                     xUnknown = jj
@@ -473,6 +473,7 @@ while p:
                                     distMax = dist
 
                                 foundTarget = False
+
             # if the map is fully explored
             if xTarget == 0:
                 fsm = 'navigationFinished'
@@ -480,7 +481,7 @@ while p:
                 fsm = 'astar'
 
 
-        # Manage end of navigation
+        # --- Manage end of navigation ---
         elif fsm == 'navigationFinished':
 
             print('No more accessible points to visit...')
@@ -498,6 +499,7 @@ while p:
             plt.colorbar()
             plt.show()
 
+            # Plot the loop time as a histogram
             print(timing)
             print(max(timing))
             print(min(timing))
@@ -522,6 +524,9 @@ while p:
 
             occupancyGridAstar = np.ones((n, n), dtype=int)
 
+            # occupancyGridAstar:
+            # assign weights to the points of the grid (decreasing weights in relation to
+            # the distance from the obstacles)
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
                     if statesMapCopy[j, k] == 1 or statesMapCopy[j, k] == 2:
@@ -541,17 +546,18 @@ while p:
 
 
             occupancyGridAstar = occupancyGridAstar.transpose()
-            occupancyGridAstar1 = occupancyGridAstar.tolist()
+            occupancyGridAstarList = occupancyGridAstar.tolist()
 
-            # Astar algorithm implemetation by Peter Corke
+            # Astar algorithm implemetation by Melvin Petrocchi
             from astar_python.astar import Astar
 
-            astar = Astar(occupancyGridAstar1)
-
-            # print([xTarget,yTarget])
+            astar = Astar(occupancyGridAstarList)
 
             results = astar.run([xRobot, yRobot], [xTarget, yTarget])
 
+            # Create a copy of the statesMap to plot the path generated by Astar.
+            # In the path, we take only one point every 5: this can be done because of
+            # the weights given in occupancyGridAstar (for the points near the obstacles)
             pathMat = statesMap.copy()
 
             pathLen = int(len(results)/5)
@@ -567,10 +573,9 @@ while p:
                         if resultsElem[0] == j and resultsElem[1] == k:
                             pathMat[j, k] = 5
 
+            # here we take the last to points of the original path (not divided by 5)
             resultsElem1 = results[-1]
             resultsElem2 = results[-2]
-            # path = np.vstack((path, resultsElem1))
-            # path = np.vstack((path, resultsElem2))
             path[-1, 0] = xAxis[resultsElem1[0]]
             path[-1, 1] = yAxis[resultsElem1[1]]
             path[-2, 0] = xAxis[resultsElem2[0]]
@@ -579,6 +584,7 @@ while p:
             pathMat[resultsElem1[0], resultsElem1[1]] = 5
             pathMat[resultsElem2[0], resultsElem2[1]] = 5
 
+            # Plot the occupancyGridAstar only 1 time (after 9 iterations of SearchAlgo)
             if counterSearchAlgo == 10:
                 plt.close()
 
@@ -594,28 +600,19 @@ while p:
                 plt.show(block=False)
                 plt.pause(.001)
 
-
-
-            #
-            # plt.matshow(statesMap)
-            # plt.colorbar()
-            # plt.show()
-
-            # Initialize the index for the path elements
+            # Initialize the index for the elements of the path
             iPath = 1
             fsm = 'rotate'
             print('Switching to state: ', fsm)
 
-        # --- ROTATION ---
         #
+        # --- Rotation ---
         #
 
         elif fsm == 'rotate':
 
-            # Rotate until the robot has an angle until target point is straight ahead (measured with respect to the world's reference frame).
-            # Again, use a proportional controller. In case of overshoot, the angle difference will change sign,
-            # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
-            # the anguler speed becomes negative).
+            # Rotate until target point is straight ahead (measured with respect to the world's reference frame).
+            # Use a proportional controller.
             # youbotEuler(3) is the rotation around the vertical axis.
             if iPath >= len(path)-1:
                 fsm = 'searchAlgo'
@@ -640,7 +637,7 @@ while p:
                 print('Switching to state: ', fsm)
 
         #
-        # --- FORWARD ---
+        # --- Forward ---
         #
         elif fsm == 'forward':
 
@@ -648,135 +645,23 @@ while p:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
             else:
-                # A speed which is a function of the distance to the destination can also be used. This is useful to avoid
-                # overshooting: with this controller, the speed decreases when the robot approaches the goal.
-                # Here, the goal is to reach y = -4.5.
+                # Set a costant velocity
+                forwBackVel = - 5
+
+                # Stop when the robot is close to the next element of the path.
+                # The tolerance has been determined by experiments
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
-                distance = math.sqrt(a**2 + b**2) # distance between youbot and goal
-                forwBackVel = - 5
-                # distance to goal influences the maximum speed
-
-                # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
-                # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
-                # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
-                # for example).
+                distance = math.sqrt(a**2 + b**2) # distance between robot and goal
                 if abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
                     fsm = 'rotate'
                     print('Switching to state: ', fsm)
 
-
-
-
-
-#  First state of state machine
-# fsm = 'forward'
-# print('Switching to state: ', fsm)
-#
-# # Get the initial position
-# res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-# # Set the speed of the wheels to 0.
-# h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
-#
-# # Send a Trigger to the simulator: this will run a time step for the physic engine
-# # because of the synchronous mode. Run several iterations to stabilize the simulation
-# for i in range(int(1./timestep)):
-#     vrep.simxSynchronousTrigger(clientID)
-#     vrep.simxGetPingTime(clientID)
-#
-# # Start the demo.
-# while True:
-#     try:
-#         # Check the connection with the simulator
-#         if vrep.simxGetConnectionId(clientID) == -1:
-#             sys.exit('Lost connection to remote API.')
-#
-#         # Get the position and the orientation of the robot.
-#         res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-#         vrchk(vrep, res, True) # Check the return value from the previous V-REP call (res) and exit in case of error.
-#         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-#         vrchk(vrep, res, True)
-#
-         # # Get the distance from the beacons
-         # # Change the flag to True to constraint the range of the beacons
-         # beacon_dist = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False)
-
-         # # Get data from the hokuyo - return empty if data is not captured
-         # scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer)
-         # vrchk(vrep, res)
-#
-#         # Apply the state machine.
-#         if fsm == 'forward':
-#
-#             # Make the robot drive with a constant speed (very simple controller, likely to overshoot).
-#             # The speed is - 1 m/s, the sign indicating the direction to follow. Please note that the robot has
-#             # limitations and cannot reach an infinite speed.
-#             forwBackVel = -1
-#
-#             # Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
-#             # small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
-#             # then the robot is not close enough to the position (which may be a problem if it has to pick an object,
-#             # for example).
-#             if abs(youbotPos[1] + 6.5) < .02:
-#                 forwBackVel = 0  # Stop the robot.
-#                 fsm = 'backward'
-#                 print('Switching to state: ', fsm)
-#
-#
-#         elif fsm == 'backward':
-#             # A speed which is a function of the distance to the destination can also be used. This is useful to avoid
-#             # overshooting: with this controller, the speed decreases when the robot approaches the goal.
-#             # Here, the goal is to reach y = -4.5.
-#             forwBackVel = - 2 * (youbotPos[1] + 4.5)
-#             # distance to goal influences the maximum speed
-#
-#             # Stop when the robot is close to y = 4.5.
-#             if abs(youbotPos[1] + 4.5) < .01:
-#                 forwBackVel = 0  # Stop the robot.
-#                 fsm = 'right'
-#                 print('Switching to state: ', fsm)
-#
-#         elif fsm == 'right':
-#             # Move sideways, again with a proportional controller (goal: x = - 4.5).
-#             rightVel = - 2 * (youbotPos[0] + 4.5)
-#
-#             # Stop at x = - 4.5
-#             if abs(youbotPos[0] + 4.5) < .01:
-#                 rightVel = 0  # Stop the robot.
-#                 fsm = 'rotateRight'
-#                 print('Switching to state: ', fsm)
-#
-#         elif fsm == 'rotateRight':
-#             # Rotate until the robot has an angle of -pi/2 (measured with respect to the world's reference frame).
-#             # Again, use a proportional controller. In case of overshoot, the angle difference will change sign,
-#             # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
-#             # the anguler speed becomes negative).
-#             # youbotEuler(3) is the rotation around the vertical axis.
-#             rotateRightVel = angdiff(youbotEuler[2], (-np.pi/2))
-#
-#             # Stop when the robot is at an angle close to -pi/2.
-#             if abs(angdiff(youbotEuler[2], (-np.pi/2))) < .002:
-#                 rotateRightVel = 0
-#                 fsm = 'rotateLeft'
-#                 print('Switching to state: ', fsm)
-#
-#         elif fsm == 'rotateLeft':
-#             # Rotate until the robot has an angle of -pi/2 (measured with respect to the world's reference frame).
-#             # Again, use a proportional controller. In case of overshoot, the angle difference will change sign,
-#             # and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots,
-#             # the anguler speed becomes negative).
-#             # youbotEuler(3) is the rotation around the vertical axis.
-#             rotateRightVel = angdiff(youbotEuler[2], (np.pi/2))
-#
-#             # Stop when the robot is at an angle close to -pi/2.
-#             if abs(angdiff(youbotEuler[2], (np.pi/2))) < .002:
-#                 rotateRightVel = 0
-#                 fsm = 'finished'
-#                 print('Switching to state: ', fsm)
-#
-#
+        #
+        # --- Finished ---
+        #
         elif fsm == 'finished':
             print('Finish')
             time.sleep(3)
@@ -786,10 +671,6 @@ while p:
 #
         # Update wheel velocities.
         h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
-
-        # What happens if you do not update the velocities?
-        # The simulator always considers the last speed you gave it,
-        # until you set a new velocity.
 
         # Send a Trigger to the simulator: this will run a time step for the physic engine
         # because of the synchronous mode.
