@@ -91,7 +91,26 @@ for i in range(int(1./timestep)):
 beacons_world_pos = np.zeros((len(beacons_handle), 3))
 for i, beacon in enumerate(beacons_handle):
     res, beacons_world_pos[i] = vrep.simxGetObjectPosition(clientID, beacon, -1,
-                                                           vrep.simx_opmode_buffer)
+                                                           vrep.simx_opmode_oneshot_wait)
+
+xC1 = beacons_world_pos[0, 0]
+yC1 = beacons_world_pos[0, 1]
+xC2 = beacons_world_pos[1, 0]
+yC2 = beacons_world_pos[1, 1]
+xC3 = beacons_world_pos[2, 0]
+yC3 = beacons_world_pos[2, 1]
+
+xC = [xC1, xC2, xC3]
+yC = [yC1, yC2, yC3]
+
+R12 = math.sqrt((xC1-xC2)**2+(yC1-yC2)**2)
+R23 = math.sqrt((xC2-xC3)**2+(yC2-yC3)**2)
+R31 = math.sqrt((xC1-xC3)**2+(yC1-yC3)**2)
+
+R = [R12, R23, R31]
+# print(R12)
+# print(R23)
+# print(R31)
 
 # Parameters for controlling the youBot's wheels: at each iteration,
 # those values will be set for the wheels.
@@ -99,6 +118,48 @@ for i, beacon in enumerate(beacons_handle):
 forwBackVel = 0  # Move straight ahead.
 rightVel = 0  # Go sideways.
 rotateRightVel = 0  # Rotate.
+
+
+from pfilter import (ParticleFilter, gaussian_noise, squared_error, independent_sample)
+
+from scipy.stats import norm, gamma, uniform
+
+
+columns = ["x", "y", "radius", "dx", "dy"]
+# prior sampling function for each variable
+# (assumes x and y are coordinates in the range 0-32)
+prior_fn = independent_sample([uniform(loc=0, scale=32).rvs,
+                               uniform(loc=0, scale=32).rvs,
+                               gamma(a=2,loc=0,scale=10).rvs,
+                               norm(loc=0, scale=0.5).rvs,
+                               norm(loc=0, scale=0.5).rvs])
+
+# very simple linear dynamics: x += dx
+def velocity(x):
+    xp = np.array(x)
+    xp[0:2] += xp[3:5]
+    return xp
+
+# create the filter
+pf = ParticleFilter(
+                prior_fn=prior_fn,
+                observe_fn=blob,
+                n_particles=200,
+                dynamics_fn=velocity,
+                noise_fn=lambda x:
+                            gaussian_noise(x, sigmas=[0.2, 0.2, 0.1, 0.05, 0.05]),
+                weight_fn=lambda x,y:squared_error(x, y, sigma=2),
+                resample_proportion=0.1,
+                column_names = columns)
+
+# assuming image of the same dimensions/type as blob will produce
+pf.update(image)
+
+
+
+
+
+
 
 if True:
     # representation of the 2D map explored by the youBot
@@ -145,6 +206,30 @@ for i in range(int(1./timestep)):
 timing = []
 counter = 0
 
+# from sympy import symbols, Eq, nsolve
+# x, y = symbols('x y')
+# eq1 = Eq(x**2 + y**2 + 6*x -6*y +8)
+# eq2 = Eq(x**2 - y**2 + 14*x - 2*y)
+# # solve((eq1,eq2), (x, y))
+# sol_dict = nsolve((eq1,eq2), (x, y), (0, 0))
+# print(sol_dict)
+# # print(f'x = {sol_dict[0]}')
+# # print(f'y = {sol_dict[1]}')
+
+# x1 = -3
+# x2 = -7
+# y1 = 3
+# y2 = 1
+# r1 = math.sqrt(10)
+# r2 = math.sqrt(50)
+# R = math.sqrt(20)
+#
+# intersecX = 0.5*(x1 + x2) + (r1**2 - r2**2)/(2*R**2)*(x2 -x1) - 0.5*math.sqrt(2*(r1**2 + r2**2)/(R**2) - ((r1**2 - r2**2)**2)/(R**4) - 1)*(y2 - y1)
+# intersecY = 0.5*(y1 + y2) + (r1**2 - r2**2)/(2*R**2)*(y2 -y1) + 0.5*math.sqrt(2*(r1**2 + r2**2)/(R**2) - ((r1**2 - r2**2)**2)/(R**4) - 1)*(x2 - x1)
+#
+# print(intersecX)
+# print(intersecY)
+
 p = True
 # Start the demo.
 while p:
@@ -155,8 +240,61 @@ while p:
             sys.exit('Lost connection to remote API.')
 
         # Get the position and the orientation of the robot.
-        res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-        vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
+        distance = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False, noise=False)
+        # print(distance)
+
+        r1 = distance[0]
+        r2 = distance[1]
+        r3 = distance[2]
+        r = [r1, r2, r3]
+
+        xGuess = np.zeros((1, 3))
+        yGuess = np.zeros((1, 3))
+        # print(xGuess[0, 1])
+
+        # intersection point of two circles
+        for mm in range(3):
+            if mm == 0:
+                i = 0
+                j = 1
+                k = 2
+            elif mm == 1:
+                i = 1
+                j = 2
+                k = 0
+            elif mm == 2:
+                i = 2
+                j = 0
+                k = 1
+
+            # https://math.stackexchange.com/questions/256100/how-can-i-find-the-points-at-which-two-circles-intersect
+
+            XA = 0.5*(xC[i] + xC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(xC[j] -xC[i]) - 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(yC[j] - yC[i])
+            YA = 0.5*(yC[i] + yC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(yC[j] -yC[i]) + 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(xC[j] - xC[i])
+            XB = 0.5*(xC[i] + xC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(xC[j] -xC[i]) + 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(yC[j] - yC[i])
+            YB = 0.5*(yC[i] + yC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(yC[j] -yC[i]) - 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(xC[j] - xC[i])
+
+            distanceA = math.sqrt((XA-xC[k])**2+(YA-yC[k])**2)
+            distanceB = math.sqrt((XB-xC[k])**2+(YB-yC[k])**2)
+            tol = 0.1
+
+            if r[k] - tol < distanceA < r[k] + tol:
+                xGuess[0, mm] = XA
+                yGuess[0, mm] = YA
+            else:
+                xGuess[0, mm] = XB
+                yGuess[0, mm] = YB
+
+        print(xGuess)
+        print(yGuess)
+
+        youbotPos[0] = (xGuess[0, 0] + xGuess[0, 1] + xGuess[0, 2])/3
+        youbotPos[1] = (yGuess[0, 0] + yGuess[0, 1] + yGuess[0, 2])/3
+
+        print(youbotPos)
+        # Mileston1.A
+        # res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        # vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
         vrchk(vrep, res, True)
 
@@ -408,7 +546,7 @@ while p:
                         xTarget = xT
                         yTarget = yT
                         distMax = dist
-                        print(dist)
+                        # print(dist)
 
                     foundTarget = False
 
