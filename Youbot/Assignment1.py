@@ -10,11 +10,20 @@ Distributed under the GNU General Public License.
 import sim as vrep
 
 # Useful import
-import time
+
 import math
 import numpy as np
+import numpy
+import pickle
 import sys
 import time
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from skimage import measure
+from skimage.draw import ellipse
+from skimage.measure import label, regionprops, regionprops_table
+from skimage.transform import rotate
 
 from cleanup_vrep import cleanup_vrep
 from vrchk import vrchk
@@ -132,7 +141,7 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
-fsm = 'searchAlgo'
+fsm = 'navigationFinished'
 counterSearchAlgo = 0
 print('Switching to state: ', fsm)
 
@@ -492,11 +501,33 @@ while p:
                     if statesMap[j, k] == 1:
                         statesMap[j, k] = 2
 
-            # Plot of the total map
-            plt.close()
-            plt.matshow(statesMap)
-            plt.colorbar()
-            plt.show()
+            # # Plot of the total map
+            # plt.close()
+            # plt.matshow(statesMap)
+            # plt.colorbar()
+            # plt.show()
+
+            mat = np.matrix(statesMap)
+            with open('saveStatesMapLocal.txt', 'wb') as f:
+                for line in mat:
+                    np.savetxt(f, line, fmt='%.2f', delimiter= ',')
+
+            saveStatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+            # print(saveStatesMap)
+
+            # End the infinite loop
+            navigationFinished = True
+
+            # turn off the hokuyo captor
+            res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res, True)
+
+            fsm = 'searchTables'
+
+            # plt.close()
+            # plt.matshow(saveStatesMap)
+            # plt.colorbar()
+            # plt.show()
 
             # Plot the loop time as a histogram
 
@@ -504,18 +535,18 @@ while p:
             # print(max(timing))
             # print(min(timing))
 
-            n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
-
-            plt.grid(axis='y', alpha=0.75)
-            plt.xlabel('Time [s]')
-            plt.ylabel('Number of loops')
-            maxTime = n.max()
-            plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
-
-            plt.show()
+            # n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
+            #
+            # plt.grid(axis='y', alpha=0.75)
+            # plt.xlabel('Time [s]')
+            # plt.ylabel('Number of loops')
+            # maxTime = n.max()
+            # plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
+            #
+            # plt.show()
 
             # End the infinite loop
-            p = False
+            # p = False
 
         #
         # --- Astar path planning ---
@@ -544,7 +575,6 @@ while p:
 
                     else:
                         occupancyGridAstar[j, k] = -1
-
 
             occupancyGridAstar = occupancyGridAstar.transpose()
             occupancyGridAstarList = occupancyGridAstar.tolist()
@@ -659,6 +689,34 @@ while p:
                     iPath = iPath + 1
                     fsm = 'rotate'
                     print('Switching to state: ', fsm)
+
+        elif fsm == 'searchTables':
+
+            binaryMap = np.full((n, n), True, dtype=bool)
+
+            for jjj in range(len(xAxis)):
+                for kkk in range(len(yAxis)):
+                    if saveStatesMap[jjj, kkk] == 2:
+                        binaryMap[jjj, kkk] = True
+                    else:
+                        binaryMap[jjj, kkk] = False
+
+            nn = measure.label(binaryMap, background=None, return_num=False, connectivity=None)
+            print(nn)
+            plt.close()
+            plt.matshow(saveStatesMap)
+            plt.colorbar()
+            plt.show()
+            props = regionprops_table(nn, properties=('centroid',
+                                                      'orientation',
+                                                      'major_axis_length',
+                                                      'minor_axis_length'))
+
+            print(props)
+
+            p = False
+
+
 
         #
         # --- Finished ---
