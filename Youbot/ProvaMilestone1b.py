@@ -25,6 +25,7 @@ from youbot_hokuyo import youbot_hokuyo
 from youbot_xyz_sensor import youbot_xyz_sensor
 from beacon import beacon_init, youbot_beacon
 from utils_sim import angdiff
+from Prova_obs import example_filter
 
 # Test the python implementation of a youbot
 # Initiate the connection to the simulator.
@@ -108,9 +109,6 @@ R23 = math.sqrt((xC2-xC3)**2+(yC2-yC3)**2)
 R31 = math.sqrt((xC1-xC3)**2+(yC1-yC3)**2)
 
 R = [R12, R23, R31]
-# print(R12)
-# print(R23)
-# print(R31)
 
 # Parameters for controlling the youBot's wheels: at each iteration,
 # those values will be set for the wheels.
@@ -144,12 +142,12 @@ xLength = sizeMap[0]
 yLength = sizeMap[1]
 
 # np.set_printoptions(threshold=sys.maxsize)
-# print(xLength)
 
 # Get the initial position
 res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
 # Set the speed of the wheels to 0.
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+youbotPosz = youbotPos[2]
 
 # Initialise the state machine.
 fsm = 'searchAlgo'
@@ -199,17 +197,15 @@ while p:
             sys.exit('Lost connection to remote API.')
 
         # Get the position and the orientation of the robot.
-        distance = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False, noise=False)
-        # print(distance)
+        distance_beacon = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False, noise=True)
 
-        r1 = distance[0]
-        r2 = distance[1]
-        r3 = distance[2]
+        r1 = distance_beacon[0]
+        r2 = distance_beacon[1]
+        r3 = distance_beacon[2]
         r = [r1, r2, r3]
 
         xGuess = np.zeros((1, 3))
         yGuess = np.zeros((1, 3))
-        # print(xGuess[0, 1])
 
         # intersection point of two circles
         for mm in range(3):
@@ -244,16 +240,24 @@ while p:
                 xGuess[0, mm] = XB
                 yGuess[0, mm] = YB
 
-        print(xGuess)
-        print(yGuess)
-
         youbotPos[0] = (xGuess[0, 0] + xGuess[0, 1] + xGuess[0, 2])/3
         youbotPos[1] = (yGuess[0, 0] + yGuess[0, 1] + yGuess[0, 2])/3
 
-        print(youbotPos)
+        print('youbotPos without filter', youbotPos)
+
+        # tmp = np.zeros((1, 2))
+        # tmp[0][0] = youbotPos[0]
+        # tmp[0][1] = youbotPos[1]
+        # x_filter = tmp
+        # youbotPos = example_filter(x_filter, distance_beacon)
+        # youbotPos = np.hstack((youbotPos, youbotPosz))
+        # print('youbotPos with filter', youbotPos)
+
         # Milestone1.A
-        # res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-        # vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
+        res, RealyoubotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
+        print('RealyoubotPos', RealyoubotPos)
+
         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
         vrchk(vrep, res, True)
 
@@ -330,6 +334,9 @@ while p:
 
         # assigning state 2 to the obstacles and state 3 to the points adjacent to the obstacles
         for i in range(len(xObstacle)):
+            if int(xObstacle[i]) >= xLength or int(yObstacle[i]) >= yLength:
+                break
+
             statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
 
             if 0 <= xObstacle[i] + 1 < len(xAxis) \
@@ -378,6 +385,9 @@ while p:
         # assigning state 4 to the points adjacent to the state 3 points
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
+                if j >= xLength or k >= yLength:
+                    break
+
                 if statesMapCopy[j, k] == 3:
                     if statesMapCopy[j - 1, k - 1] == 0:
                         statesMapCopy[j - 1, k - 1] = 4
@@ -406,6 +416,9 @@ while p:
         # assigning state 5 to the points adjacent to the state 4 points
         for j in range(len(xAxis)):
             for k in range(len(yAxis)):
+                if j >= xLength or k >= yLength:
+                    break
+
                 if statesMapCopy[j, k] == 4:
                     if statesMapCopy[j - 1, k - 1] == 0:
                         statesMapCopy[j - 1, k - 1] = 5
@@ -505,7 +518,6 @@ while p:
                         xTarget = xT
                         yTarget = yT
                         distMax = dist
-                        # print(dist)
 
                     foundTarget = False
 
@@ -744,13 +756,21 @@ while p:
                 print('Switching to state: ', fsm)
             else:
                 # Set a costant velocity
-                forwBackVel = - 5
+                forwBackVel = -1.0
+
+                tmp = np.zeros((1, 2))
+                tmp[0][0] = youbotPos[0]
+                tmp[0][1] = youbotPos[1]
+                x_filter = tmp
+                youbotPos = example_filter(x_filter, distance_beacon, youbotEuler[2])
+                youbotPos = np.hstack((youbotPos, youbotPosz))
+                print('youbotPos with filter', youbotPos)
 
                 # Stop when the robot is close to the next element of the path.
                 # The tolerance has been determined by experiments
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
-                distance = math.sqrt(a**2 + b**2) # distance between robot and goal
+                distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
                 if abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
