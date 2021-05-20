@@ -10,11 +10,20 @@ Distributed under the GNU General Public License.
 import sim as vrep
 
 # Useful import
-import time
+
 import math
 import numpy as np
+import numpy
+import pickle
 import sys
 import time
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from skimage import measure
+from skimage.draw import ellipse
+from skimage.measure import label, regionprops, regionprops_table
+from skimage.transform import rotate
 
 from cleanup_vrep import cleanup_vrep
 from vrchk import vrchk
@@ -132,8 +141,9 @@ res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_op
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
 # Initialise the state machine.
-fsm = 'searchAlgo'
+fsm = 'navigationFinished'
 counterSearchAlgo = 0
+navigationFinished = False
 print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
@@ -492,11 +502,33 @@ while p:
                     if statesMap[j, k] == 1:
                         statesMap[j, k] = 2
 
-            # Plot of the total map
-            plt.close()
-            plt.matshow(statesMap)
-            plt.colorbar()
-            plt.show()
+            # # Plot of the total map
+            # plt.close()
+            # plt.matshow(statesMap)
+            # plt.colorbar()
+            # plt.show()
+
+            mat = np.matrix(statesMap)
+            with open('saveStatesMapLocal.txt', 'wb') as f:
+                for line in mat:
+                    np.savetxt(f, line, fmt='%.2f', delimiter= ',')
+
+            saveStatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+            # print(saveStatesMap)
+
+            # End the infinite loop
+            navigationFinished = True
+
+            # turn off the hokuyo captor
+            res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res, True)
+
+            fsm = 'searchTables'
+
+            # plt.close()
+            # plt.matshow(saveStatesMap)
+            # plt.colorbar()
+            # plt.show()
 
             # Plot the loop time as a histogram
 
@@ -504,18 +536,18 @@ while p:
             # print(max(timing))
             # print(min(timing))
 
-            n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
-
-            plt.grid(axis='y', alpha=0.75)
-            plt.xlabel('Time [s]')
-            plt.ylabel('Number of loops')
-            maxTime = n.max()
-            plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
-
-            plt.show()
+            # n, bins, patches = plt.hist(x=timing, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
+            #
+            # plt.grid(axis='y', alpha=0.75)
+            # plt.xlabel('Time [s]')
+            # plt.ylabel('Number of loops')
+            # maxTime = n.max()
+            # plt.ylim(ymax=np.ceil(maxTime/10) * 10 if maxTime % 10 else maxTime + 10)
+            #
+            # plt.show()
 
             # End the infinite loop
-            p = False
+            # p = False
 
         #
         # --- Astar path planning ---
@@ -523,38 +555,44 @@ while p:
 
         elif fsm == 'astar':
 
-            occupancyGridAstar = np.ones((n, n), dtype=int)
+            if not navigationFinished:
 
-            # occupancyGridAstar:
-            # assign weights to the points of the grid (decreasing weights in relation to
-            # the distance from the obstacles)
-            for j in range(len(xAxis)):
-                for k in range(len(yAxis)):
-                    if statesMapCopy[j, k] == 1 or statesMapCopy[j, k] == 2:
-                        occupancyGridAstar[j, k] = 1000
+                occupancyGridAstar = np.ones((n, n), dtype=int)
 
-                    elif statesMapCopy[j, k] == 3:
-                        occupancyGridAstar[j, k] = 750
+                # occupancyGridAstar:
+                # assign weights to the points of the grid (decreasing weights in relation to
+                # the distance from the obstacles)
+                for j in range(len(xAxis)):
+                    for k in range(len(yAxis)):
+                        if statesMapCopy[j, k] == 1 or statesMapCopy[j, k] == 2:
+                            occupancyGridAstar[j, k] = 1000
 
-                    elif statesMapCopy[j, k] == 4:
-                        occupancyGridAstar[j, k] = 500
+                        elif statesMapCopy[j, k] == 3:
+                            occupancyGridAstar[j, k] = 750
 
-                    elif statesMapCopy[j, k] == 5:
-                        occupancyGridAstar[j, k] = 400
+                        elif statesMapCopy[j, k] == 4:
+                            occupancyGridAstar[j, k] = 500
 
-                    else:
-                        occupancyGridAstar[j, k] = -1
+                        elif statesMapCopy[j, k] == 5:
+                            occupancyGridAstar[j, k] = 400
 
+                        else:
+                            occupancyGridAstar[j, k] = -1
 
-            occupancyGridAstar = occupancyGridAstar.transpose()
-            occupancyGridAstarList = occupancyGridAstar.tolist()
+                occupancyGridAstar = occupancyGridAstar.transpose()
+                occupancyGridAstarList = occupancyGridAstar.tolist()
 
             # Astar algorithm implemetation by Melvin Petrocchi
             from astar_python.astar import Astar
 
             astar = Astar(occupancyGridAstarList)
 
-            results = astar.run([xRobot, yRobot], [xTarget, yTarget])
+            if not navigationFinished:
+                results = astar.run([xRobot, yRobot], [xTarget, yTarget])
+
+            elif discoverTableCounter < 3:
+                j = discoverTableCounter
+                results = astar.run([xRobot, yRobot], [tablesNeighbours[j, 0], tablesNeighbours[j, 1]])
 
             # Create a copy of the statesMap to plot the path generated by Astar.
             # In the path, we take only one point every 5: this can be done because of
@@ -659,6 +697,83 @@ while p:
                     iPath = iPath + 1
                     fsm = 'rotate'
                     print('Switching to state: ', fsm)
+
+        elif fsm == 'searchTables':
+
+            binaryMap = np.full((n, n), True, dtype=bool)
+
+            for jjj in range(len(xAxis)):
+                for kkk in range(len(yAxis)):
+                    if saveStatesMap[jjj, kkk] == 2:
+                        binaryMap[jjj, kkk] = True
+                    else:
+                        binaryMap[jjj, kkk] = False
+
+            nn = measure.label(binaryMap, background=None, return_num=False, connectivity=None)
+            # plt.close()
+            # plt.matshow(saveStatesMap)
+            # plt.colorbar()
+            # plt.show()
+            props = regionprops_table(nn, properties=('centroid',
+                                                      'area',
+                                                      'perimeter'))
+
+            blobCentroidX = props['centroid-0']
+            blobCentroidY = props['centroid-1']
+            blobArea = props['area']
+            blobPerimeter = props['perimeter']
+
+            blobID = []
+
+            for i in range(len(blobPerimeter)):
+                if 13 < blobPerimeter[i] < 14:
+                    blobID.append(i)
+
+            centroidX = []
+            centroidY = []
+            area = []
+            perimeter = []
+
+            for j, ID in enumerate(blobID):
+                centroidX.append(round(blobCentroidX[ID]))
+                centroidY.append(round(blobCentroidY[ID]))
+                area.append(blobArea[ID])
+                perimeter.append(blobPerimeter[ID])
+
+            centroidX = np.array(centroidX)
+            centroidY = np.array(centroidY)
+
+            tablesCenters = np.vstack((centroidX, centroidY))
+            tablesCenters = tablesCenters.transpose()
+
+            # Get the coordinates of a free cell near each table in matrix form
+            tablesNeighbours = tablesCenters.copy()
+
+            for j in range(3):
+                c = tablesCenters[j, 1] + 1
+                if statesMap[tablesCenters[j, 0], c] != 0:
+                    c = c + 1
+                tablesNeighbours[j, 1] = c
+
+            tablesRealCenter = np.zeros((3, 2))
+            # Get real (x, y) coordinates for the center points of the tables
+            for i in range(3):
+                tablesRealCenter[i, 0] = xAxis[tablesCenters[i, 0]]
+                tablesRealCenter[i, 1] = yAxis[tablesCenters[i, 1]]
+
+            # Set a counter for the table to discover
+            discoverTableCounter = 0
+            fsm = 'astar'
+
+
+
+
+
+            # print(props)
+
+            p = False
+
+
 
         #
         # --- Finished ---
