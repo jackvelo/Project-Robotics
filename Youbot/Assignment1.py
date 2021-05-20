@@ -111,11 +111,11 @@ rotateRightVel = 0  # Rotate.
 prevOrientation = 0  # Previous angle to goal (easy way to have a condition on the robot's angular speed).
 prevPosition = [0, 0]  # Previous distance to goal (easy way to have a condition on the robot's speed).
 
-# Set the arm to its starting configuration.
-res = vrep.simxPauseCommunication(id, True)  # Send order to the simulator through vrep object.
+# Set the arm to its starting configuration. id
+res = vrep.simxPauseCommunication(clientID, True)  # Send order to the simulator through vrep object.
 vrchk(vrep, res)  # Check the return value from the previous V-REP call (res) and exit in case of error.
 
-res = vrep.simxPauseCommunication(id, False)
+res = vrep.simxPauseCommunication(clientID, False)
 vrchk(vrep, res)
 
 # Define Constants
@@ -125,9 +125,9 @@ resolution = 0.25
 dim = 7.5   # house's dimension
 
 # Initialize arm position
-for i in range(5):
-    res = vrep.simxSetJointTargetPosition(id, h.armJoints(i), startingJoints(i), vrep.simx_opmode_oneshot)
-    vrchk(vrep, res, True)
+# for i in range(5):
+#     res = vrep.simxSetJointTargetPosition(clientID, h.armJoints[i], startingJoints[i], vrep.simx_opmode_oneshot)
+#     vrchk(vrep, res, True)
 
 # x, y will be used to display the area the robot can see, by
 # selecting the points within this mesh that are within the visibility range.
@@ -160,7 +160,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'navigation'
+start = 'findtarget'
 
 if start == 'navigation':
     navigationFinished = False
@@ -174,12 +174,13 @@ if start == 'navigation':
 elif start == 'findtarget':
     navigationFinished = True
     discoverTableCounter = 1
-    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
+    counterSearchAlgo = 0
 
     # turn off the hokuyo captor
-    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
-    vrchk(vrep, res)
+    res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res, True)
     # Initialise the state machine.
     fsm = 'searchTables'
     print('Switching to state: ', fsm)
@@ -187,7 +188,7 @@ elif start == 'findtarget':
 elif start == 'ModelTable':
     navigationFinished = True
     discoverTableCounter = 4
-    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # objectsTablesID = load('objectsTablesID.mat');
     # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
@@ -212,8 +213,8 @@ elif start == 'ModelTable':
     # neighbour = 1;
 
     # turn off the hokuyo captor
-    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
-    vrchk(vrep, res)
+    res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res, True)
     # Initialise the state machine.
     fsm = 'astar'
     print('Switching to state: ', fsm)
@@ -221,7 +222,7 @@ elif start == 'ModelTable':
 elif start == 'computedestObjects':
     navigationFinished = True
     discoverTableCounter = 4
-    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # centerObject1 = load('centerObject1.mat');
     # centerObject1 = cell2mat(struct2cell(centerObject1));
@@ -244,8 +245,8 @@ elif start == 'computedestObjects':
     # objectID = 1;
 
     # turn off the hokuyo captor
-    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
-    vrchk(vrep, res)
+    res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res, True)
     # Initialise the state machine.
     fsm = 'computedestObjects'
     print('Switching to state: ', fsm)
@@ -253,7 +254,7 @@ elif start == 'computedestObjects':
 elif start == 'grasping':
     navigationFinished = True
     discoverTableCounter = 4
-    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # centerObject1 = load('centerObject1.mat');
     # centerObject1 = cell2mat(struct2cell(centerObject1));
@@ -276,8 +277,8 @@ elif start == 'grasping':
     # neighbour = 5;
 
     # turn off the hokuyo captor
-    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
-    vrchk(vrep, res)
+    res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res, True)
     # Initialise the state machine.
     fsm = 'calculateObjectGoal'
     print('Switching to state: ', fsm)
@@ -868,20 +869,29 @@ while p:
                 # discovered and when we reached the last goal point
                 elif navigationFinished and abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
+                    iPath = iPath + 1
+                    fsm = 'rotate'
+                    print('Switching to state: ', fsm)
 
-                    if discoverTableCounter < 4:
-                        fsm = 'rotateToCenter'
+                    if iPath >= len(path)-1:
 
-                    elif tabID != targetID and neighbour < 6:
-                        fsm = 'rotateToCenter'
+                        if discoverTableCounter < 3:
+                            fsm = 'rotateToCenter'
+                            print('Switching to state: ', fsm)
 
-                    elif neighbour < 5:
-                        fsm = 'rotateToCenter'
+                        elif tabID != targetID and neighbour < 6:
+                            fsm = 'rotateToCenter'
+                            print('Switching to state: ', fsm)
 
-                    elif objectID < 6:
-                        fsm = 'rotateAndSlide'
+                        elif neighbour < 5:
+                            fsm = 'rotateToCenter'
+                            print('Switching to state: ', fsm)
 
-            prevPosition = [youbotPos[0], youbotPos[1]]
+                        elif objectID < 6:
+                            fsm = 'rotateAndSlide'
+                            print('Switching to state: ', fsm)
+
+                prevPosition = [youbotPos[0], youbotPos[1]]
 
         elif fsm == 'searchTables':
 
@@ -889,14 +899,14 @@ while p:
 
             for jjj in range(len(xAxis)):
                 for kkk in range(len(yAxis)):
-                    if StatesMap[jjj, kkk] == 2:
+                    if statesMap[jjj, kkk] == 2:
                         binaryMap[jjj, kkk] = True
                     else:
                         binaryMap[jjj, kkk] = False
 
             nn = measure.label(binaryMap, background=None, return_num=False, connectivity=None)
             # plt.close()
-            # plt.matshow(StatesMap)
+            # plt.matshow(statesMap)
             # plt.colorbar()
             # plt.show()
             props = regionprops_table(nn, properties=('centroid',
@@ -949,14 +959,70 @@ while p:
             # Set a counter for the table to discover
             discoverTableCounter = 0
             fsm = 'astar'
+            print('Switching to state: ', fsm)
+
+        # In this section the robot is rotating the camera towards the center of the table
+        elif fsm == 'rotateToCenter':
+            k = discoverTableCounter
+
+            # get camera position
+            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1,vrep.simx_opmode_oneshot_wait)
+            vrchk(vrep, res, True)
+
+            aa = rgbdPos[0] - tablesRealCenter[k, 0]
+            bb = tablesRealCenter[k, 1] - rgbdPos[1]
+
+            if k < 3:
+                aa = rgbdPos[0] - tablesRealCenter[k, 0]
+                bb = tablesRealCenter[k, 1] - rgbdPos[1]
+                beta = math.atan2(aa,bb) - math.pi/2
+                if bb > 0:
+                    beta = beta + math.pi
+            else:
+                aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
+                bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
+                beta = math.atan2(aa,bb) - math.pi/2
+                if bb > 0:
+                    beta = beta + math.pi
+
+            # Set the desired camera orientation
+            vrep.simxSetObjectOrientation(clientID, h['ref'], -1,[0, 0, beta], vrep.simx_opmode_oneshot)
+
+            # Checking whether we are in the target finding phase or table modelling one
+            if discoverTableCounter < 3:
+                fsm = 'findTarget'
+            else:
+                fsm = 'modelTable'
+
+        # In this section a picture of the table is taken and the target is determined
+        elif fsm == 'findTarget':
+
+            k = discoverTableCounter
+
+            # Get scan angle of pi/4 for the depth sensor
+            res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi / 4, vrep.simx_opmode_oneshot_wait)
+            vrchk(vrep, res)
+
+            # Ask the sensor to turn itself on, take A SINGLE POINT CLOUD, and turn itself off again.
+            res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
+            vrchk(vrep, res)
+
+            # Get the point cloud from the depth sensor
+            pointCloud = youbot_xyz_sensor(vrep,  h['ref'] , vrep.simx_opmode_oneshot_wait)
+            # Take only the points until a distance of 1.2
+
+            # Find highest point for this table
+            maxi = - math.inf
+            for point in range(len(pointCloud)):
+                if pointCloud[1, point] > maxi:
+                    maxi = pointCloud[1 , point]
 
 
 
 
 
-            # print(props)
 
-            p = False
+
 
 
 
