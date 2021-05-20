@@ -18,7 +18,7 @@ import pickle
 import sys
 import time
 import matplotlib.pyplot as plt
-import pandas as pd
+# import pandas as pd
 
 from skimage import measure
 from skimage.draw import ellipse
@@ -108,43 +108,189 @@ for i, beacon in enumerate(beacons_handle):
 forwBackVel = 0  # Move straight ahead.
 rightVel = 0  # Go sideways.
 rotateRightVel = 0  # Rotate.
+prevOrientation = 0  # Previous angle to goal (easy way to have a condition on the robot's angular speed).
+prevPosition = [0, 0]  # Previous distance to goal (easy way to have a condition on the robot's speed).
 
-if True:
-    # representation of the 2D map explored by the youBot
-    resolution = 0.25
-    dim = 7.5   # house's dimension
-    # x, y will be used to display the area the robot can see, by
-    # selecting the points within this mesh that are within the visibility range.
-    x, y = np.meshgrid(np.arange(-dim, dim + resolution, resolution), np.arange(-dim, dim + resolution, resolution))
-    x, y = x.flatten(), y.flatten()
-    # these are the axis
-    xAxis = np.arange(-dim, dim + resolution, resolution)
-    yAxis = np.arange(-dim, dim + resolution, resolution)
+# Set the arm to its starting configuration.
+res = vrep.simxPauseCommunication(id, True)  # Send order to the simulator through vrep object.
+vrchk(vrep, res)  # Check the return value from the previous V-REP call (res) and exit in case of error.
+
+res = vrep.simxPauseCommunication(id, False)
+vrchk(vrep, res)
+
+# Define Constants
+# Definition of the starting pose of the arm (the angle to impose at each joint to be in the rest position).
+startingJoints = [0, 30.91 * math.pi / 180, 52.42 * math.pi / 180, 72.68 * math.pi / 180, 0]
+resolution = 0.25
+dim = 7.5   # house's dimension
+
+# Initialize arm position
+for i in range(5):
+    res = vrep.simxSetJointTargetPosition(id, h.armJoints(i), startingJoints(i), vrep.simx_opmode_oneshot)
+    vrchk(vrep, res, True)
+
+# x, y will be used to display the area the robot can see, by
+# selecting the points within this mesh that are within the visibility range.
+x, y = np.meshgrid(np.arange(-dim, dim + resolution, resolution), np.arange(-dim, dim + resolution, resolution))
+x, y = x.flatten(), y.flatten()
+
+# these are the axis
+xAxis = np.arange(-dim, dim + resolution, resolution)
+yAxis = np.arange(-dim, dim + resolution, resolution)
 
 # dimension of the x and y axes
 n = len(xAxis)
 
-# building up the state map assuming all the states as unknown (= 1)
-statesMap = np.ones((n, n), dtype=int)
+# Create a list that stores the max high of objects on tables (to determine target)
+tablesMaxHigh = np.zeros((1,3))
+
+# Make sure everything is settled before we start.
+# pause(2)
+
+# For infinite loop
+p = True
+# Flag that determines if the robot holds a object or not
+holdObject = False
+# Flag that determine if the robot as to rotateAndSlide closer to the table or further (just use during grasping)
+slideCloser = True
+
+# Initialiaze the index in "goals" array (here equal to 0 for plot)
+i = 0
+
+#
+# --- Decide where to start -----------------------------------------------
+#
+start = 'navigation'
+
+if start == 'navigation':
+    navigationFinished = False
+    # building up the state map assuming all the states as unknown (= 1)
+    statesMap = np.ones((n, n), dtype=int)
+    # Initialise the state machine.
+    fsm = 'searchAlgo'
+    counterSearchAlgo = 0
+    print('Switching to state: ', fsm)
+
+elif start == 'findtarget':
+    navigationFinished = True
+    discoverTableCounter = 1
+    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
+
+    # turn off the hokuyo captor
+    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res)
+    # Initialise the state machine.
+    fsm = 'searchTables'
+    print('Switching to state: ', fsm)
+
+elif start == 'ModelTable':
+    navigationFinished = True
+    discoverTableCounter = 4
+    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
+    # objectsTablesID = load('objectsTablesID.mat');
+    # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
+    # targetID = load('targetID.mat');
+    # targetID = cell2mat(struct2cell(targetID));
+    # tablesCentersReal = load('tablesCentersReal.mat');
+    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
+    # tablesCentersMat = load('tablesCentersMat.mat');
+    # tablesCentersMat = cell2mat(struct2cell(tablesCentersMat));
+    # table1Neighbours = load('table1Neighbours.mat');
+    # table1Neighbours = cell2mat(struct2cell(table1Neighbours));
+    # table2Neighbours = load('table2Neighbours.mat');
+    # table2Neighbours = cell2mat(struct2cell(table2Neighbours));
+    # targetNeighbours = load('targetNeighbours.mat');
+    # targetNeighbours = cell2mat(struct2cell(targetNeighbours));
+    # ptsTable1 = [];
+    # ptsTable2 = [];
+    # ptsObjects1 = [];
+    # ptsObjects2 = [];
+    # tabToModel = table1Neighbours;
+    # tabID = objectsTablesID(1);
+    # neighbour = 1;
+
+    # turn off the hokuyo captor
+    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res)
+    # Initialise the state machine.
+    fsm = 'astar'
+    print('Switching to state: ', fsm)
+
+elif start == 'computedestObjects':
+    navigationFinished = True
+    discoverTableCounter = 4
+    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
+    # centerObject1 = load('centerObject1.mat');
+    # centerObject1 = cell2mat(struct2cell(centerObject1));
+    # centerObject2 = load('centerObject2.mat');
+    # centerObject2 = cell2mat(struct2cell(centerObject2));
+    # objectsTablesID = load('objectsTablesID.mat');
+    # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
+    # targetID = load('targetID.mat');
+    # targetID = cell2mat(struct2cell(targetID));
+    # tablesCentersReal = load('tablesCentersReal.mat');
+    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
+    # destObjects = load('destObjects.mat');
+    # destObjects = cell2mat(struct2cell(destObjects));
+    # centerTarget = load('centerTarget.mat');
+    # centerTarget = cell2mat(struct2cell(centerTarget));
+    # discoverTableCounter = 4;
+    # neighbour = 5;
+    # tabID = targetID;
+    # tableID = 1;
+    # objectID = 1;
+
+    # turn off the hokuyo captor
+    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res)
+    # Initialise the state machine.
+    fsm = 'computedestObjects'
+    print('Switching to state: ', fsm)
+
+elif start == 'grasping':
+    navigationFinished = True
+    discoverTableCounter = 4
+    StatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
+    occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
+    # centerObject1 = load('centerObject1.mat');
+    # centerObject1 = cell2mat(struct2cell(centerObject1));
+    # centerObject2 = load('centerObject2.mat');
+    # centerObject2 = cell2mat(struct2cell(centerObject2));
+    # objectsTablesID = load('objectsTablesID.mat');
+    # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
+    # targetID = load('targetID.mat');
+    # targetID = cell2mat(struct2cell(targetID));
+    # tablesCentersReal = load('tablesCentersReal.mat');
+    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
+    # destObjects = load('destObjects.mat');
+    # destObjects = cell2mat(struct2cell(destObjects));
+    # centerTarget = load('centerTarget.mat');
+    # centerTarget = cell2mat(struct2cell(centerTarget));
+    # tableID = 1;
+    # objectID = 1;
+    # discoverTableCounter = 4;
+    # tabID = targetID;
+    # neighbour = 5;
+
+    # turn off the hokuyo captor
+    res = vrep.simxSetIntegerSignal(h.id, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
+    vrchk(vrep, res)
+    # Initialise the state machine.
+    fsm = 'calculateObjectGoal'
+    print('Switching to state: ', fsm)
 
 # obtaining the state map size
 sizeMap = statesMap.shape
 xLength = sizeMap[0]
 yLength = sizeMap[1]
 
-# np.set_printoptions(threshold=sys.maxsize)
-# print(xLength)
-
 # Get the initial position
 res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
 # Set the speed of the wheels to 0.
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
-
-# Initialise the state machine.
-fsm = 'navigationFinished'
-counterSearchAlgo = 0
-navigationFinished = False
-print('Switching to state: ', fsm)
 
 # Send a Trigger to the simulator: this will run a time step for the physic engine
 # because of the synchronous mode. Run several iterations to stabilize the simulation
@@ -155,7 +301,6 @@ for i in range(int(1./timestep)):
 timing = []
 counter = 0
 
-p = True
 # Start the demo.
 while p:
     try:
@@ -174,175 +319,177 @@ while p:
         xRobot = round((youbotPos[0] + 7.5)/resolution)
         yRobot = round((youbotPos[1] + 7.5)/resolution)
 
-        # --- Drawing the map initialization ---
-        #
-        # Get data from the hokuyo - return empty if data is not captured
-        rotangle = youbotEuler[2] - math.pi/2
-        hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
-        # 0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
+        if not navigationFinished:
 
-        # Determine the position of the Hokuyo with global coordinates (world reference frame).
-        from trans_rot_matrix import trans_rot_matrix
-        trf = trans_rot_matrix(youbotEuler, youbotPos)  # check the file trans_rot_matrix for explanation
+            # --- Drawing the map initialization ---
+            #
+            # Get data from the hokuyo - return empty if data is not captured
+            rotangle = youbotEuler[2] - math.pi/2
+            hokuyoPos = np.array([[youbotPos[0]], [youbotPos[1]]]) + np.array([[np.cos(rotangle)], [np.sin(rotangle)]]) * 0.23
+            # 0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
 
-        scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer, trf)
-        vrchk(vrep, res)
-        # scanned_points is a 6xN matrix, where rows 1 and 4 represents coordinate x,
-        # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
-        # we need to concatenate row 1 and 4. This is done in the following lines of code
+            # Determine the position of the Hokuyo with global coordinates (world reference frame).
+            from trans_rot_matrix import trans_rot_matrix
+            trf = trans_rot_matrix(youbotEuler, youbotPos)  # check the file trans_rot_matrix for explanation
 
-        # Free space points
-        from matplotlib.path import Path
-        import matplotlib.pyplot as plt
-        points = np.vstack((x, y)).T  # x, y defined on line 108
+            scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer, trf)
+            vrchk(vrep, res)
+            # scanned_points is a 6xN matrix, where rows 1 and 4 represents coordinate x,
+            # rows 2 and 5 coord y and rows 3 and 6 coord z. So to obtain all the x coords
+            # we need to concatenate row 1 and 4. This is done in the following lines of code
 
-        # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
-        row1 = scanned_points[0, :]
-        row2 = scanned_points[1, :]
-        row4 = scanned_points[3, :]
-        row5 = scanned_points[4, :]
-        arr1 = np.squeeze(np.asarray(row1))  # squeeze change the type from np.matrix to np.array, needed to concatenate
-        arr2 = np.squeeze(np.asarray(row2))
-        arr4 = np.squeeze(np.asarray(row4))
-        arr5 = np.squeeze(np.asarray(row5))
-        x_scanned = np.hstack((arr1, arr4))  # concatenate horizontally
-        y_scanned = np.hstack((arr2, arr5))
-        x_polygon = np.hstack((youbotPos[0], x_scanned))  # concatenate horizontally
-        y_polygon = np.hstack((youbotPos[1], y_scanned))
-        polygon_vertex = np.vstack((x_polygon, y_polygon)).T
+            # Free space points
+            from matplotlib.path import Path
+            import matplotlib.pyplot as plt
+            points = np.vstack((x, y)).T  # x, y defined on line 108
 
-        # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
-        # are inside this polygon. The points inside the polygon will be free space
-        p = Path(polygon_vertex)  # make a polygon
-        grid = p.contains_points(points)  # check what points fall inside (grid represents the index of the points)
+            # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
+            row1 = scanned_points[0, :]
+            row2 = scanned_points[1, :]
+            row4 = scanned_points[3, :]
+            row5 = scanned_points[4, :]
+            arr1 = np.squeeze(np.asarray(row1))  # squeeze change the type from np.matrix to np.array, needed to concatenate
+            arr2 = np.squeeze(np.asarray(row2))
+            arr4 = np.squeeze(np.asarray(row4))
+            arr5 = np.squeeze(np.asarray(row5))
+            x_scanned = np.hstack((arr1, arr4))  # concatenate horizontally
+            y_scanned = np.hstack((arr2, arr5))
+            x_polygon = np.hstack((youbotPos[0], x_scanned))  # concatenate horizontally
+            y_polygon = np.hstack((youbotPos[1], y_scanned))
+            polygon_vertex = np.vstack((x_polygon, y_polygon)).T
 
-        # Get the real coordinates of the points determined by "grid"
-        x_free = x[grid]
-        y_free = y[grid]
+            # Make a polygon with the scanned points (boundary points) and check what points of the statesMap
+            # are inside this polygon. The points inside the polygon will be free space
+            p = Path(polygon_vertex)  # make a polygon
+            grid = p.contains_points(points)  # check what points fall inside (grid represents the index of the points)
 
-        # get the free point in matrix form
-        x_free = (x_free + 7.5)/resolution
-        y_free = (y_free + 7.5)/resolution
-        x_free = np.round(x_free)
-        y_free = np.round(y_free)
+            # Get the real coordinates of the points determined by "grid"
+            x_free = x[grid]
+            y_free = y[grid]
 
-        # update reachable states of the statesMap
-        for i in range(len(x_free)):
-            if statesMap[int(x_free[i]), int(y_free[i])] == 1:
-                statesMap[int(x_free[i]), int(y_free[i])] = 0
+            # get the free point in matrix form
+            x_free = (x_free + 7.5)/resolution
+            y_free = (y_free + 7.5)/resolution
+            x_free = np.round(x_free)
+            y_free = np.round(y_free)
 
-        # Obstacle points
-        contacts_total = np.hstack((contacts[0, :], contacts[1, :]))
-        xObstacle = x_scanned[contacts_total]
-        yObstacle = y_scanned[contacts_total]
+            # update reachable states of the statesMap
+            for i in range(len(x_free)):
+                if statesMap[int(x_free[i]), int(y_free[i])] == 1:
+                    statesMap[int(x_free[i]), int(y_free[i])] = 0
 
-        xObstacle = (xObstacle + 7.5)/resolution
-        yObstacle = (yObstacle + 7.5)/resolution
-        xObstacle = np.round(xObstacle)
-        yObstacle = np.round(yObstacle)
+            # Obstacle points
+            contacts_total = np.hstack((contacts[0, :], contacts[1, :]))
+            xObstacle = x_scanned[contacts_total]
+            yObstacle = y_scanned[contacts_total]
 
-        # assigning state 2 to the obstacles and state 3 to the points adjacent to the obstacles
-        for i in range(len(xObstacle)):
-            statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
+            xObstacle = (xObstacle + 7.5)/resolution
+            yObstacle = (yObstacle + 7.5)/resolution
+            xObstacle = np.round(xObstacle)
+            yObstacle = np.round(yObstacle)
 
-            if 0 <= xObstacle[i] + 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] + 1 < len(yAxis):
-                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] == 0:
-                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] = 3
+            # assigning state 2 to the obstacles and state 3 to the points adjacent to the obstacles
+            for i in range(len(xObstacle)):
+                statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
 
-            if 0 <= xObstacle[i] + 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] - 1 < len(yAxis):
-                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] == 0:
-                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] = 3
+                if 0 <= xObstacle[i] + 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] + 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] == 0:
+                        statesMap[int(xObstacle[i] + 1), int(yObstacle[i] + 1)] = 3
 
-            if 0 <= xObstacle[i] + 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] < len(yAxis):
-                if statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] == 0:
-                    statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] = 3
+                if 0 <= xObstacle[i] + 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] - 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] == 0:
+                        statesMap[int(xObstacle[i] + 1), int(yObstacle[i] - 1)] = 3
 
-            if 0 <= xObstacle[i] - 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] + 1 < len(yAxis):
-                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] == 0:
-                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] = 3
+                if 0 <= xObstacle[i] + 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] < len(yAxis):
+                    if statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] == 0:
+                        statesMap[int(xObstacle[i] + 1), int(yObstacle[i])] = 3
 
-            if 0 <= xObstacle[i] - 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] - 1 < len(yAxis):
-                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] == 0:
-                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] = 3
+                if 0 <= xObstacle[i] - 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] + 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] == 0:
+                        statesMap[int(xObstacle[i] - 1), int(yObstacle[i] + 1)] = 3
 
-            if 0 <= xObstacle[i] - 1 < len(xAxis) \
-                    and 0 <= yObstacle[i] < len(yAxis):
-                if statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] == 0:
-                    statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] = 3
+                if 0 <= xObstacle[i] - 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] - 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] == 0:
+                        statesMap[int(xObstacle[i] - 1), int(yObstacle[i] - 1)] = 3
 
-            if 0 <= xObstacle[i] < len(xAxis) \
-                    and 0 <= yObstacle[i] + 1 < len(yAxis):
-                if statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] == 0:
-                    statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] = 3
+                if 0 <= xObstacle[i] - 1 < len(xAxis) \
+                        and 0 <= yObstacle[i] < len(yAxis):
+                    if statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] == 0:
+                        statesMap[int(xObstacle[i] - 1), int(yObstacle[i])] = 3
 
-            if 0 <= xObstacle[i] < len(xAxis) \
-                    and 0 <= yObstacle[i] - 1 < len(yAxis):
-                if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
-                    statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
+                if 0 <= xObstacle[i] < len(xAxis) \
+                        and 0 <= yObstacle[i] + 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] == 0:
+                        statesMap[int(xObstacle[i]), int(yObstacle[i] + 1)] = 3
 
-        # a copy of the statesMap is realized to leave the statesMap neater
-        statesMapCopy = statesMap.copy()
+                if 0 <= xObstacle[i] < len(xAxis) \
+                        and 0 <= yObstacle[i] - 1 < len(yAxis):
+                    if statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] == 0:
+                        statesMap[int(xObstacle[i]), int(yObstacle[i] - 1)] = 3
 
-        # assigning state 4 to the points adjacent to the state 3 points
-        for j in range(len(xAxis)):
-            for k in range(len(yAxis)):
-                if statesMapCopy[j, k] == 3:
-                    if statesMapCopy[j - 1, k - 1] == 0:
-                        statesMapCopy[j - 1, k - 1] = 4
+            # a copy of the statesMap is realized to leave the statesMap neater
+            statesMapCopy = statesMap.copy()
 
-                    if statesMapCopy[j, k - 1] == 0:
-                        statesMapCopy[j, k - 1] = 4
+            # assigning state 4 to the points adjacent to the state 3 points
+            for j in range(len(xAxis)):
+                for k in range(len(yAxis)):
+                    if statesMapCopy[j, k] == 3:
+                        if statesMapCopy[j - 1, k - 1] == 0:
+                            statesMapCopy[j - 1, k - 1] = 4
 
-                    if statesMapCopy[j + 1, k - 1] == 0:
-                        statesMapCopy[j + 1, k - 1] = 4
+                        if statesMapCopy[j, k - 1] == 0:
+                            statesMapCopy[j, k - 1] = 4
 
-                    if statesMapCopy[j - 1, k] == 0:
-                        statesMapCopy[j - 1, k] = 4
+                        if statesMapCopy[j + 1, k - 1] == 0:
+                            statesMapCopy[j + 1, k - 1] = 4
 
-                    if statesMapCopy[j + 1, k] == 0:
-                        statesMapCopy[j + 1, k] = 4
+                        if statesMapCopy[j - 1, k] == 0:
+                            statesMapCopy[j - 1, k] = 4
 
-                    if statesMapCopy[j - 1, k + 1] == 0:
-                        statesMapCopy[j - 1, k + 1] = 4
+                        if statesMapCopy[j + 1, k] == 0:
+                            statesMapCopy[j + 1, k] = 4
 
-                    if statesMapCopy[j, k + 1] == 0:
-                        statesMapCopy[j, k + 1] = 4
+                        if statesMapCopy[j - 1, k + 1] == 0:
+                            statesMapCopy[j - 1, k + 1] = 4
 
-                    if statesMapCopy[j + 1, k + 1] == 0:
-                        statesMapCopy[j + 1, k + 1] = 4
+                        if statesMapCopy[j, k + 1] == 0:
+                            statesMapCopy[j, k + 1] = 4
 
-        # assigning state 5 to the points adjacent to the state 4 points
-        for j in range(len(xAxis)):
-            for k in range(len(yAxis)):
-                if statesMapCopy[j, k] == 4:
-                    if statesMapCopy[j - 1, k - 1] == 0:
-                        statesMapCopy[j - 1, k - 1] = 5
+                        if statesMapCopy[j + 1, k + 1] == 0:
+                            statesMapCopy[j + 1, k + 1] = 4
 
-                    if statesMapCopy[j, k - 1] == 0:
-                        statesMapCopy[j, k - 1] = 5
+            # assigning state 5 to the points adjacent to the state 4 points
+            for j in range(len(xAxis)):
+                for k in range(len(yAxis)):
+                    if statesMapCopy[j, k] == 4:
+                        if statesMapCopy[j - 1, k - 1] == 0:
+                            statesMapCopy[j - 1, k - 1] = 5
 
-                    if statesMapCopy[j + 1, k - 1] == 0:
-                        statesMapCopy[j + 1, k - 1] = 5
+                        if statesMapCopy[j, k - 1] == 0:
+                            statesMapCopy[j, k - 1] = 5
 
-                    if statesMapCopy[j - 1, k] == 0:
-                        statesMapCopy[j - 1, k] = 5
+                        if statesMapCopy[j + 1, k - 1] == 0:
+                            statesMapCopy[j + 1, k - 1] = 5
 
-                    if statesMapCopy[j + 1, k] == 0:
-                        statesMapCopy[j + 1, k] = 5
+                        if statesMapCopy[j - 1, k] == 0:
+                            statesMapCopy[j - 1, k] = 5
 
-                    if statesMapCopy[j - 1, k + 1] == 0:
-                        statesMapCopy[j - 1, k + 1] = 5
+                        if statesMapCopy[j + 1, k] == 0:
+                            statesMapCopy[j + 1, k] = 5
 
-                    if statesMapCopy[j, k + 1] == 0:
-                        statesMapCopy[j, k + 1] = 5
+                        if statesMapCopy[j - 1, k + 1] == 0:
+                            statesMapCopy[j - 1, k + 1] = 5
 
-                    if statesMapCopy[j + 1, k + 1] == 0:
-                        statesMapCopy[j + 1, k + 1] = 5
+                        if statesMapCopy[j, k + 1] == 0:
+                            statesMapCopy[j, k + 1] = 5
+
+                        if statesMapCopy[j + 1, k + 1] == 0:
+                            statesMapCopy[j + 1, k + 1] = 5
 
         # # Occupancy grid
         #
@@ -509,12 +656,14 @@ while p:
             # plt.show()
 
             mat = np.matrix(statesMap)
-            with open('saveStatesMapLocal.txt', 'wb') as f:
+            with open('saveStatesMap.txt', 'wb') as f:
                 for line in mat:
-                    np.savetxt(f, line, fmt='%.2f', delimiter= ',')
+                    np.savetxt(f, line, fmt='%.2f', delimiter=',')
 
-            saveStatesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
-            # print(saveStatesMap)
+            mat2 = np.matrix(occupancyGridAstarList)
+            with open('saveoccupancyGridAstarList.txt', 'wb') as f:
+                for line in mat2:
+                    np.savetxt(f, line, fmt='%.2f', delimiter=',')
 
             # End the infinite loop
             navigationFinished = True
@@ -526,7 +675,7 @@ while p:
             fsm = 'searchTables'
 
             # plt.close()
-            # plt.matshow(saveStatesMap)
+            # plt.matshow(StatesMap)
             # plt.colorbar()
             # plt.show()
 
@@ -587,12 +736,29 @@ while p:
 
             astar = Astar(occupancyGridAstarList)
 
+            # Choose in which case we are (Goal differs if we are in the
+            # navigation phase, grasping, modeling the table,...)
             if not navigationFinished:
                 results = astar.run([xRobot, yRobot], [xTarget, yTarget])
 
             elif discoverTableCounter < 3:
                 j = discoverTableCounter
                 results = astar.run([xRobot, yRobot], [tablesNeighbours[j, 0], tablesNeighbours[j, 1]])
+
+            elif tabID != targetID and neighbour < 6:
+                results = astar.run([xRobot, yRobot], [tabToModel[neighbour, 0], tabToModel[neighbour, 1]])
+
+            elif neighbour < 5:
+                results = astar.run([xRobot, yRobot], [targetNeighbours[neighbour, 0], targetNeighbours[neighbour, 1]])
+
+            elif objectID < 6:
+                if holdObject == False:
+                    results = astar.run([xRobot, yRobot], [posNearObject[0], posNearObject[1]])
+                else:
+                    if tableID == 1:
+                        results = astar.run([xRobot, yRobot], [destObjects[objectID, 0], destObjects[objectID, 1]])
+                    else:
+                        results = astar.run([xRobot, yRobot], [destObjects[objectID+5, 0], destObjects[objectID+5, 1]])
 
             # Create a copy of the statesMap to plot the path generated by Astar.
             # In the path, we take only one point every 5: this can be done because of
@@ -680,7 +846,7 @@ while p:
         #
         elif fsm == 'forward':
 
-            if iPath >= len(path)-1:
+            if not navigationFinished and iPath >= len(path)-1:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
             else:
@@ -692,11 +858,30 @@ while p:
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
                 distance = math.sqrt(a**2 + b**2) # distance between robot and goal
-                if abs(distance) < .5:
+                if not navigationFinished and abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
                     fsm = 'rotate'
                     print('Switching to state: ', fsm)
+
+                # Condition that is verify after the map is fully
+                # discovered and when we reached the last goal point
+                elif navigationFinished and abs(distance) < .5:
+                    forwBackVel = 0  # Stop the robot.
+
+                    if discoverTableCounter < 4:
+                        fsm = 'rotateToCenter'
+
+                    elif tabID != targetID and neighbour < 6:
+                        fsm = 'rotateToCenter'
+
+                    elif neighbour < 5:
+                        fsm = 'rotateToCenter'
+
+                    elif objectID < 6:
+                        fsm = 'rotateAndSlide'
+
+            prevPosition = [youbotPos[0], youbotPos[1]]
 
         elif fsm == 'searchTables':
 
@@ -704,14 +889,14 @@ while p:
 
             for jjj in range(len(xAxis)):
                 for kkk in range(len(yAxis)):
-                    if saveStatesMap[jjj, kkk] == 2:
+                    if StatesMap[jjj, kkk] == 2:
                         binaryMap[jjj, kkk] = True
                     else:
                         binaryMap[jjj, kkk] = False
 
             nn = measure.label(binaryMap, background=None, return_num=False, connectivity=None)
             # plt.close()
-            # plt.matshow(saveStatesMap)
+            # plt.matshow(StatesMap)
             # plt.colorbar()
             # plt.show()
             props = regionprops_table(nn, properties=('centroid',
