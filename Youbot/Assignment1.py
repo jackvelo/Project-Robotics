@@ -20,6 +20,11 @@ import time
 import matplotlib.pyplot as plt
 # import pandas as pd
 
+from numpy.core.multiarray import add_docstring
+from numpy.core import overrides
+
+__all__ = ['logspace', 'linspace', 'geomspace']
+
 from skimage import measure
 from skimage.draw import ellipse
 from skimage.measure import label, regionprops, regionprops_table
@@ -981,12 +986,12 @@ while p:
             else:
                 aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
                 bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
-                beta = math.atan2(aa,bb) - math.pi/2
+                beta = math.atan2(aa, bb) - math.pi/2
                 if bb > 0:
                     beta = beta + math.pi
 
             # Set the desired camera orientation
-            vrep.simxSetObjectOrientation(clientID, h['ref'], -1,[0, 0, beta], vrep.simx_opmode_oneshot)
+            vrep.simxSetObjectOrientation(clientID, h['ref'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
 
             # Checking whether we are in the target finding phase or table modelling one
             if discoverTableCounter < 3:
@@ -997,7 +1002,7 @@ while p:
         # In this section a picture of the table is taken and the target is determined
         elif fsm == 'findTarget':
 
-            k = discoverTableCounter
+            j = discoverTableCounter
 
             # Get scan angle of pi/4 for the depth sensor
             res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi / 4, vrep.simx_opmode_oneshot_wait)
@@ -1007,15 +1012,153 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
+            print(h['ref'])
+
             # Get the point cloud from the depth sensor
-            pointCloud = youbot_xyz_sensor(vrep,  h['ref'] , vrep.simx_opmode_oneshot_wait)
-            # Take only the points until a distance of 1.2
+            pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
+            sizePointCloud = pointCloud.shape
+            numPoint = sizePointCloud[1]
+
+            pointCloudID = []
+
+            for i in range(numPoint):
+                if pointCloud[4, i] < 1.2:
+                    pointCloudID.append(i)
+
+            for j, ID in enumerate(pointCloudID):
+                pointCloud.append(pointCloud[0:2, ID])
 
             # Find highest point for this table
             maxi = - math.inf
             for point in range(len(pointCloud)):
                 if pointCloud[1, point] > maxi:
-                    maxi = pointCloud[1 , point]
+                    maxi = pointCloud[1, point]
+
+            tablesMaxHigh[j] = maxi
+
+            # Next table index
+            discoverTableCounter = discoverTableCounter + 1
+
+            # Find the target table and define the neighbourhood of the table where the robot will be sent
+
+            # Vector containing the ID of tables having objects on them
+            objectsTablesID = []
+
+            if discoverTableCounter > 2:
+                minHigh = min(tablesMaxHigh)
+                for j in range(len(tablesMaxHigh)):
+                    if tablesMaxHigh[j] == minHigh:
+                        targetID = j
+                    else:
+                        objectsTablesID.append = j
+
+                # fprintf('Target table : (%f,%f) \n',...
+                #     tablesCentersReal(targetID,1), tablesCentersReal(targetID,2)');
+
+                # Define the neighbourhood of the tables with objects
+                table1Neighbours = np.zeros((5, 2))
+                table2Neighbours = np.zeros((5, 2))
+
+                tab1ID = objectsTablesID[1]
+                tab2ID = objectsTablesID[2]
+
+                # Divide 360° in 5 to takes pictures from 5 spots equally spaced
+                angles = np.linspace(0, 2*math.pi, num=6)
+
+                # Focus on table 1
+                centerTable = tablesRealCenter[tab1ID, :]
+
+                for k in range(5):
+                    j = 0.5
+                    table1Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                    table1Neighbours[k, 0] = round((table1Neighbours[k, 0] + 7.5)/resolution) + 1
+                    table1Neighbours[k, 1] = round((table1Neighbours[k, 1] + 7.5)/resolution) + 1
+
+                    # Verify that the cell is free
+                    a = table1Neighbours[k, 0]
+                    b = table1Neighbours[k, 1]
+                    if statesMap[a, b] != 0:
+                        j = j + 0.1
+                        table1Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                        table1Neighbours[k, 0] = round((table1Neighbours[k, 0] + 7.5)/resolution) + 1
+                        table1Neighbours[k, 1] = round((table1Neighbours[k, 1] + 7.5)/resolution) + 1
+
+                 # Focus on table 2
+                centerTable = tablesRealCenter[tab2ID, :]
+
+                for k in range(5):
+                    j = 0.5
+                    table2Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                    table2Neighbours[k, 0] = round((table2Neighbours[k, 0] + 7.5)/resolution) + 1
+                    table2Neighbours[k, 1] = round((table2Neighbours[k, 1] + 7.5)/resolution) + 1
+
+                    # Verify that the cell is free
+                    a = table2Neighbours[k, 0]
+                    b = table2Neighbours[k, 1]
+                    if statesMap[a, b] != 0:
+                        j = j + 0.1
+                        table2Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                        table2Neighbours[k, 0] = round((table2Neighbours[k, 0] + 7.5)/resolution) + 1
+                        table2Neighbours[k, 1] = round((table2Neighbours[k, 1] + 7.5)/resolution) + 1
+
+                tabID = targetID
+
+                targetNeighbours = np.zeros((4, 2))
+
+                # Determination of neighbours (N-S-E-W) of the target table
+                for j in range(6):
+                    a = tablesCenters[tabID, 0] + j
+                    b = tablesCenters[tabID, 1]
+                    if statesMap[a, b] == 0:
+                        targetNeighbours[0, :] = [a, b]
+                        break
+
+                for j in range(6):
+                    a = tablesCenters[tabID, 0]
+                    b = tablesCenters[tabID, 1] - j
+                    if statesMap[a, b] == 0:
+                        targetNeighbours[1, :] = [a, b]
+                        break
+
+                for j in range(6):
+                    a = tablesCenters[tabID, 0] - j
+                    b = tablesCenters[tabID, 1]
+                    if statesMap[a, b] == 0:
+                        targetNeighbours[2, :] = [a, b]
+                        break
+
+                for j in range(6):
+                    a = tablesCenters[tabID, 0]
+                    b = tablesCenters[tabID, 1] + j
+                    if statesMap[a, b] == 0:
+                        targetNeighbours[3, :] = [a, b]
+                        break
+
+                # % Initialize to empty the matrices that will store the
+                # % points taken with depth camera
+                ptsTable1 = []
+                ptsTable2 = []
+                ptsTarget = []
+                ptsObjects1 = []
+                ptsObjects2 = []
+
+                # % Determine which table the robot has to model first
+                tabToModel = table1Neighbours
+                tabID = objectsTablesID[0]
+                # % Determine which neighbour has to be visited
+                neighbour = 1
+
+                # save('table1Neighbours.mat','table1Neighbours')
+                # save('table2Neighbours.mat','table2Neighbours')
+                # save('targetNeighbours.mat', 'targetNeighbours')
+                # save('targetID.mat','targetID')
+                # save('tablesCentersReal.mat','tablesCentersReal')
+                # save('tablesCentersMat.mat','tablesCentersMat')
+
+
+            fsm = 'astar'
+
+
 
 
 
