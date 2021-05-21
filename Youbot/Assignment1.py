@@ -1012,7 +1012,7 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
-            print(h['ref'])
+            # print(h['ref'])
 
             # Get the point cloud from the depth sensor
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
@@ -1157,6 +1157,8 @@ while p:
 
 
             fsm = 'astar'
+
+        #     cioaicoa
 
 
 
