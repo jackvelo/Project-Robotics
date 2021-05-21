@@ -18,6 +18,7 @@ import pickle
 import sys
 import time
 import matplotlib.pyplot as plt
+# from sklearn.cluster import KMeans
 # import pandas as pd
 
 from skimage import measure
@@ -1012,14 +1013,9 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
-            # print(h['ref'])
+            vrep.simxSynchronousTrigger(clientID)
+            vrep.simxGetPingTime(clientID)
 
-=======
->>>>>>> e4dda1094761ffb401768c423a22c9cc76bcc15e
->>>>>>> Stashed changes
             # Get the point cloud from the depth sensor
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
 
@@ -1030,13 +1026,6 @@ while p:
             maxi = - math.inf
             for point in range(len(pointCloud)):
                 if pointCloud[1, point] > maxi:
-<<<<<<< Updated upstream
-=======
-<<<<<<< HEAD
-
-=======
->>>>>>> e4dda1094761ffb401768c423a22c9cc76bcc15e
->>>>>>> Stashed changes
                     maxi = pointCloud[1, point]
 
             tablesMaxHigh[j] = maxi
@@ -1163,10 +1152,9 @@ while p:
             fsm = 'astar'
             print('Switching to state: ', fsm)
 
-<<<<<<< Updated upstream
-=======
         # Use the depth camera to take picture of the tables in order to fill in ptsTableX, ptsObjectsX and ptsTarget
         elif fsm == 'modelTable':
+
             # get rgb camera position
             [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h.rgbdCasing, -1,vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
@@ -1175,7 +1163,6 @@ while p:
             [res, rgbdEuler] = vrep.simxGetObjectOrientation(clientID, h.rgbdCasing, -1,vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
-<<<<<<< HEAD
             # First, use a large angle to have a global view
             res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/4, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
@@ -1232,7 +1219,7 @@ while p:
 
                 # To know object points, keep the one with high above 0.187m
                 # (small margin with the 0.185m of table high)
-                ptsObject_focus = pts[0:2,pts[2,:] > 0.187]
+                ptsObject_focus = pts[0:2, pts[2, :] > 0.187]
 
             # Check which table is currently analyzed
             if tabID == objectsTablesID[1]:
@@ -1251,7 +1238,7 @@ while p:
                     neighbour = 1
                 fsm = 'astar'
 
-            elif tabID == objectsTablesID(2):
+            elif tabID == objectsTablesID[2]:
                 # save points of table 2 in a matrix and remove the multiple points
                 tempMatrix = np.round(250*ptsTable)/250
                 ptsTable2 = np.unique[[ptsTable2, tempMatrix.transpose()], 'rows']
@@ -1265,6 +1252,7 @@ while p:
                     neighbour = 1
 
                 fsm = 'astar'
+                print('Switching to state: ', fsm)
             else:
                 # save points of target table in a matrix and remove the multiple points
                 tempMatrix = np.round(250*ptsTable)/250
@@ -1274,15 +1262,95 @@ while p:
                 neighbour = neighbour + 1
                 if neighbour > 4:
                     fsm = 'imageAnalysis'
+                    print('Switching to state: ', fsm)
                 else:
                     fsm = 'astar'
+                    print('Switching to state: ', fsm)
 
         ## Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
-        # elif fsm == 'imageAnalysis':
+        elif fsm == 'imageAnalysis':
 
-=======
->>>>>>> e4dda1094761ffb401768c423a22c9cc76bcc15e
->>>>>>> Stashed changes
+            tab1ID = objectsTablesID[0]
+            xMean = np.mean(ptsTable1[:, 0])
+            yMean = np.mean(ptsTable1[:, 1])
+
+            # Remove parasite points for table (points placed to far from it)
+            ptsTable1 = np.transpose(ptsTable1)
+            a = np.sqrt((ptsTable1[0, :] - xMean)**2 + (ptsTable1[1, :] - yMean)**2)
+            ptsTable1 = ptsTable1[:, a < 0.6]
+
+            xCenter = (np.max(ptsTable1[0, :]) + np.min(ptsTable1[0, :]))/2
+            yCenter = (np.max(ptsTable1[1, :]) + np.min(ptsTable1[1, :]))/2
+            preciseCenter1 = np.zeros((1, 2))
+            preciseCenter1[0, :] = [xCenter, yCenter]
+            tablesRealCenter[tab1ID, :] = preciseCenter1
+
+            # Remove parasite points for objects (points placed to far from it)
+            ptsObjects1 = np.transpose(ptsObjects1)
+            a = np.sqrt((ptsObjects1[0, :] - xCenter)**2 + (ptsObjects1[1, :] - yCenter)**2)
+            ptsObjects1 = ptsObjects1[:, a < 0.4]
+            ptsObjects1 = np.transpose(ptsObjects1)
+
+            # Considering the second table
+            tab2ID = objectsTablesID[1]
+            xMean = np.mean(ptsTable2[:, 0])
+            yMean = np.mean(ptsTable2[:, 1])
+
+            # Remove parasite points for table (points placed to far from it)
+            ptsTable2 = np.transpose(ptsTable2)
+            a = np.sqrt((ptsTable2[0, :] - xMean)**2 + (ptsTable2[1, :] - yMean)**2)
+            ptsTable2 = ptsTable2[:, a < 0.6]
+
+            xCenter = (np.max(ptsTable2[0, :]) + np.min(ptsTable2[0, :]))/2
+            yCenter = (np.max(ptsTable2[1, :]) + np.min(ptsTable2[1, :]))/2
+            preciseCenter2 = np.zeros((1, 2))
+            preciseCenter2[0, :] = [xCenter, yCenter]
+            tablesRealCenter[tab1ID, :] = preciseCenter2
+
+            # Remove parasite points for objects (points placed to far from it)
+            ptsObjects2 = np.transpose(ptsObjects2)
+            a = np.sqrt((ptsObjects2[0, :] - xCenter)**2 + (ptsObjects2[1, :] - yCenter)**2)
+            ptsObjects2 = ptsObjects2[:, a < 0.4]
+            ptsObjects2 = np.transpose(ptsObjects2)
+
+            # Through the ptsTarget points, we can have a more accurate idea of the target table points and center
+            # point. So update them
+            xMean = np.mean(ptsTarget[:, 0])
+            yMean = np.mean(ptsTarget[:, 1])
+
+            # Remove parasite points for table (points situated to far from it)
+            ptsTarget = np.transpose(ptsTarget)
+            a = np.sqrt((ptsTarget[0, :] - xMean)**2 + (ptsTarget[1, :] - yMean)**2)
+            ptsTarget = ptsTarget[:, a < 0.6]
+
+            xCenter = (np.max(ptsTarget[0, :]) + np.min(ptsTarget[0, :]))/2
+            yCenter = (np.max(ptsTarget[1, :]) + np.min(ptsTarget[1, :]))/2
+            preciseCenter = np.zeros((1, 2))
+            preciseCenter[0, :] = [xCenter, yCenter]
+            tablesRealCenter[targetID, :] = [xCenter, yCenter]
+
+            # plot target table
+            plt.close()
+            plt.matshow(ptsTarget)
+            plt.colorbar()
+            plt.show()
+
+            # # Regrouping the points to find the centers of the objects on the tables.
+            # distToClusterCenters1 = math.inf
+            # for i in range(30):
+            #     [idObject,centerObject, distToClusterCenters] = KMeans(ptsObjects1, 5)
+            #     if(mean(distToClusterCenters) < distToClusterCenters1)
+            #         idObject1 = idObject;
+            #         centerObject1 = centerObject;
+            #         distToClusterCenters1 = mean(distToClusterCenters);
+            #
+            # distToClusterCenters2 = Inf;
+            # for i = 1 : 30
+            #     [idObject,centerObject, distToClusterCenters] = kmeans(ptsObjects2, 5);
+            #     if(mean(distToClusterCenters) < distToClusterCenters2)
+            #         idObject2 = idObject;
+            #         centerObject2 = centerObject;
+            #         distToClusterCenters2 = mean(distToClusterCenters)
 
 
 
