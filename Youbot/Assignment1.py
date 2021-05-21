@@ -27,6 +27,7 @@ from skimage.measure import label, regionprops, regionprops_table
 from skimage.transform import rotate
 
 from cleanup_vrep import cleanup_vrep
+from spatialmath.base import homtrans
 from vrchk import vrchk
 from youbot_init import youbot_init
 from youbot_drive import youbot_drive
@@ -35,6 +36,10 @@ from youbot_hokuyo import youbot_hokuyo
 from youbot_xyz_sensor import youbot_xyz_sensor
 from beacon import beacon_init, youbot_beacon
 from utils_sim import angdiff
+
+from trans_rot_matrix import trans_rot_matrix
+from matplotlib.path import Path
+import matplotlib.pyplot as plt
 
 from Functions import Rotate, stopWheels
 
@@ -164,7 +169,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'findtarget'
+start = 'ModelTable'
 
 if start == 'navigation':
     navigationFinished = False
@@ -194,27 +199,22 @@ elif start == 'ModelTable':
     discoverTableCounter = 3
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
-    # objectsTablesID = load('objectsTablesID.mat');
-    # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
-    # targetID = load('targetID.mat');
-    # targetID = cell2mat(struct2cell(targetID));
-    # tablesCentersReal = load('tablesCentersReal.mat');
-    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
-    # tablesCentersMat = load('tablesCentersMat.mat');
-    # tablesCentersMat = cell2mat(struct2cell(tablesCentersMat));
-    # table1Neighbours = load('table1Neighbours.mat');
-    # table1Neighbours = cell2mat(struct2cell(table1Neighbours));
-    # table2Neighbours = load('table2Neighbours.mat');
-    # table2Neighbours = cell2mat(struct2cell(table2Neighbours));
-    # targetNeighbours = load('targetNeighbours.mat');
-    # targetNeighbours = cell2mat(struct2cell(targetNeighbours));
-    # ptsTable1 = [];
-    # ptsTable2 = [];
-    # ptsObjects1 = [];
-    # ptsObjects2 = [];
-    # tabToModel = table1Neighbours;
-    # tabID = objectsTablesID(1);
-    # neighbour = 1;
+    objectsTablesID = np.loadtxt('saveobjectsTablesID.txt', dtype='i', delimiter=',')
+    targetID = np.loadtxt("savetargetID.txt", dtype='i', delimiter=',')
+    tablesRealCenter = np.loadtxt("savetablesRealCenter.txt", dtype='i', delimiter=',')
+    tablesCenters = np.loadtxt("savetablesCenters.txt", dtype='i', delimiter=',')
+    table1Neighbours = np.loadtxt("savetable1Neighbours.txt", dtype='i', delimiter=',')
+    table2Neighbours = np.loadtxt("savetable2Neighbours.txt", dtype='i', delimiter=',')
+    targetNeighbours = np.loadtxt("savetargetNeighbours.txt", dtype='i', delimiter=',')
+    ptsTable1 = []
+    ptsTable2 = []
+    ptsTarget = []
+    ptsObjects1 = []
+    ptsObjects2 = []
+    tabToModel = table1Neighbours
+    tabID = objectsTablesID[0]
+    neighbour = 0
+    counterSearchAlgo = 0
 
     # turn off the hokuyo captor
     res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
@@ -236,14 +236,14 @@ elif start == 'computedestObjects':
     # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
     # targetID = load('targetID.mat');
     # targetID = cell2mat(struct2cell(targetID));
-    # tablesCentersReal = load('tablesCentersReal.mat');
-    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
+    # tablesRealCenter = load('tablesRealCenter.mat');
+    # tablesRealCenter = cell2mat(struct2cell(tablesRealCenter));
     # destObjects = load('destObjects.mat');
     # destObjects = cell2mat(struct2cell(destObjects));
     # centerTarget = load('centerTarget.mat');
     # centerTarget = cell2mat(struct2cell(centerTarget));
-    # discoverTableCounter = 4;
-    # neighbour = 5;
+    # discoverTableCounter = 3;
+    # neighbour = 4;
     # tabID = targetID;
     # tableID = 1;
     # objectID = 1;
@@ -268,17 +268,17 @@ elif start == 'grasping':
     # objectsTablesID = cell2mat(struct2cell(objectsTablesID));
     # targetID = load('targetID.mat');
     # targetID = cell2mat(struct2cell(targetID));
-    # tablesCentersReal = load('tablesCentersReal.mat');
-    # tablesCentersReal = cell2mat(struct2cell(tablesCentersReal));
+    # tablesRealCenter = load('tablesRealCenter.mat');
+    # tablesRealCenter = cell2mat(struct2cell(tablesRealCenter));
     # destObjects = load('destObjects.mat');
     # destObjects = cell2mat(struct2cell(destObjects));
     # centerTarget = load('centerTarget.mat');
     # centerTarget = cell2mat(struct2cell(centerTarget));
     # tableID = 1;
     # objectID = 1;
-    # discoverTableCounter = 4;
+    # discoverTableCounter = 3;
     # tabID = targetID;
-    # neighbour = 5;
+    # neighbour = 4;
 
     # turn off the hokuyo captor
     res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
@@ -334,7 +334,6 @@ while p:
             # 0.23 is the distance along Y between youbot_Center and fastHokuyo_ref
 
             # Determine the position of the Hokuyo with global coordinates (world reference frame).
-            from trans_rot_matrix import trans_rot_matrix
             trf = trans_rot_matrix(youbotEuler, youbotPos)  # check the file trans_rot_matrix for explanation
 
             scanned_points, contacts = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer, trf)
@@ -344,8 +343,6 @@ while p:
             # we need to concatenate row 1 and 4. This is done in the following lines of code
 
             # Free space points
-            from matplotlib.path import Path
-            import matplotlib.pyplot as plt
             points = np.vstack((x, y)).T  # x, y defined on line 108
 
             # reorder scanned_points like x = [x1, x2... xn] and y = [y1, y2 ... yn]
@@ -750,10 +747,10 @@ while p:
                 j = discoverTableCounter
                 results = astar.run([xRobot, yRobot], [tablesNeighbours[j, 0], tablesNeighbours[j, 1]])
 
-            elif tabID != targetID and neighbour < 6:
+            elif tabID != targetID and neighbour < 5:
                 results = astar.run([xRobot, yRobot], [tabToModel[neighbour, 0], tabToModel[neighbour, 1]])
 
-            elif neighbour < 5:
+            elif neighbour < 4:
                 results = astar.run([xRobot, yRobot], [targetNeighbours[neighbour, 0], targetNeighbours[neighbour, 1]])
 
             elif objectID < 6:
@@ -893,11 +890,11 @@ while p:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                        elif tabID != targetID and neighbour < 6:
+                        elif tabID != targetID and neighbour < 5:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                        elif neighbour < 5:
+                        elif neighbour < 4:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
@@ -983,21 +980,18 @@ while p:
             [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
-            aa = rgbdPos[0] - tablesRealCenter[k, 0]
-            bb = tablesRealCenter[k, 1] - rgbdPos[1]
-
             if k < 3:
                 aa = rgbdPos[0] - tablesRealCenter[k, 0]
                 bb = tablesRealCenter[k, 1] - rgbdPos[1]
                 beta = math.atan2(aa, bb) - math.pi/2
-                if bb > 0:
-                    beta = beta + math.pi
+                # if bb > 0:
+                #     beta = beta + math.pi
             else:
                 aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
                 bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
-                beta = math.atan2(aa,bb) - math.pi/2
-                if bb > 0:
-                    beta = beta + math.pi
+                beta = math.atan2(aa, bb) - math.pi/2
+                # if bb > 0:
+                #     beta = beta + math.pi
 
             # Set the desired camera orientation
             vrep.simxSetObjectOrientation(clientID, h['rgbdCasing'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
@@ -1052,24 +1046,19 @@ while p:
 
             if discoverTableCounter > 2:
                 minHigh = min(tablesMaxHigh[0])
-                print('type of tablesMaxHigh', type(tablesMaxHigh))
                 print('tablesMaxHigh', tablesMaxHigh)
-                print('minimum', min(tablesMaxHigh[0]))
                 for j in range(len(tablesMaxHigh[0])):
                     if tablesMaxHigh[0, j] == minHigh:
                         targetID = j
                     else:
-                        objectsTablesID.append = j
-
-                # fprintf('Target table : (%f,%f) \n',...
-                #     tablesCentersReal(targetID,1), tablesCentersReal(targetID,2)');
+                        objectsTablesID.append(j)
 
                 # Define the neighbourhood of the tables with objects
                 table1Neighbours = np.zeros((5, 2))
                 table2Neighbours = np.zeros((5, 2))
 
-                tab1ID = objectsTablesID[1]
-                tab2ID = objectsTablesID[2]
+                tab1ID = objectsTablesID[0]
+                tab2ID = objectsTablesID[1]
 
                 # Divide 360° in 5 to takes pictures from 5 spots equally spaced
                 angles = np.linspace(0, 2*math.pi, num=6)
@@ -1084,13 +1073,15 @@ while p:
                     table1Neighbours[k, 1] = round((table1Neighbours[k, 1] + 7.5)/resolution) + 1
 
                     # Verify that the cell is free
-                    a = table1Neighbours[k, 0]
-                    b = table1Neighbours[k, 1]
-                    if statesMap[a, b] != 0:
+                    a = int(table1Neighbours[k, 0])
+                    b = int(table1Neighbours[k, 1])
+                    while statesMap[a, b] != 0:
                         j = j + 0.1
                         table1Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
                         table1Neighbours[k, 0] = round((table1Neighbours[k, 0] + 7.5)/resolution) + 1
                         table1Neighbours[k, 1] = round((table1Neighbours[k, 1] + 7.5)/resolution) + 1
+                        a = int(table1Neighbours[k, 0])
+                        b = int(table1Neighbours[k, 1])
 
                 # Focus on table 2
                 centerTable = tablesRealCenter[tab2ID, :]
@@ -1102,13 +1093,15 @@ while p:
                     table2Neighbours[k, 1] = round((table2Neighbours[k, 1] + 7.5)/resolution) + 1
 
                     # Verify that the cell is free
-                    a = table2Neighbours[k, 0]
-                    b = table2Neighbours[k, 1]
-                    if statesMap[a, b] != 0:
+                    a = int(table2Neighbours[k, 0])
+                    b = int(table2Neighbours[k, 1])
+                    while statesMap[a, b] != 0:
                         j = j + 0.1
                         table2Neighbours[k, :] = centerTable + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
                         table2Neighbours[k, 0] = round((table2Neighbours[k, 0] + 7.5)/resolution) + 1
                         table2Neighbours[k, 1] = round((table2Neighbours[k, 1] + 7.5)/resolution) + 1
+                        a = int(table2Neighbours[k, 0])
+                        b = int(table2Neighbours[k, 1])
 
                 tabID = targetID
 
@@ -1116,29 +1109,29 @@ while p:
 
                 # Determination of neighbours (N-S-E-W) of the target table
                 for j in range(6):
-                    a = tablesCenters[tabID, 0] + j
-                    b = tablesCenters[tabID, 1]
+                    a = int(tablesCenters[tabID, 0] + j)
+                    b = int(tablesCenters[tabID, 1])
                     if statesMap[a, b] == 0:
                         targetNeighbours[0, :] = [a, b]
                         break
 
                 for j in range(6):
-                    a = tablesCenters[tabID, 0]
-                    b = tablesCenters[tabID, 1] - j
+                    a = int(tablesCenters[tabID, 0])
+                    b = int(tablesCenters[tabID, 1] - j)
                     if statesMap[a, b] == 0:
                         targetNeighbours[1, :] = [a, b]
                         break
 
                 for j in range(6):
-                    a = tablesCenters[tabID, 0] - j
-                    b = tablesCenters[tabID, 1]
+                    a = int(tablesCenters[tabID, 0] - j)
+                    b = int(tablesCenters[tabID, 1])
                     if statesMap[a, b] == 0:
                         targetNeighbours[2, :] = [a, b]
                         break
 
                 for j in range(6):
-                    a = tablesCenters[tabID, 0]
-                    b = tablesCenters[tabID, 1] + j
+                    a = int(tablesCenters[tabID, 0])
+                    b = int(tablesCenters[tabID, 1] + j)
                     if statesMap[a, b] == 0:
                         targetNeighbours[3, :] = [a, b]
                         break
@@ -1155,8 +1148,36 @@ while p:
                 tabToModel = table1Neighbours
                 tabID = objectsTablesID[0]
                 # Determine which neighbour has to be visited
-                neighbour = 1
+                neighbour = 0
 
+                mat = np.matrix(table1Neighbours)
+                with open('savetable1Neighbours.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(table2Neighbours)
+                with open('savetable2Neighbours.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(targetNeighbours)
+                with open('savetargetNeighbours.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(targetID)
+                with open('savetargetID.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(tablesRealCenter)
+                with open('savetablesRealCenter.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(tablesCenters)
+                with open('savetablesCenters.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
+                mat = np.matrix(objectsTablesID)
+                with open('saveobjectsTablesID.txt', 'wb') as f:
+                    for line in mat:
+                        np.savetxt(f, line, fmt='%.2f', delimiter=',')
                 # save('table1Neighbours.mat','table1Neighbours')
                 # save('table2Neighbours.mat','table2Neighbours')
                 # save('targetNeighbours.mat', 'targetNeighbours')
@@ -1171,11 +1192,11 @@ while p:
         elif fsm == 'modelTable':
 
             # get rgb camera position
-            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h.rgbdCasing, -1,vrep.simx_opmode_oneshot_wait)
+            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
             # get rgb camera angle
-            [res, rgbdEuler] = vrep.simxGetObjectOrientation(clientID, h.rgbdCasing, -1,vrep.simx_opmode_oneshot_wait)
+            [res, rgbdEuler] = vrep.simxGetObjectOrientation(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
             # First, use a large angle to have a global view
@@ -1186,86 +1207,104 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
+            vrep.simxSynchronousTrigger(clientID)
+            vrep.simxGetPingTime(clientID)
+
             # Store this picture in pts
             pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
+            print('pts', pts)
 
             # Only keep points within 1.2 meter, to focus on the table
-            pts = pts[0:3, pts[3, :] < 1.2]
+            pts = pts[0:4, pts[3, :] < 1.2]
+            print('ptsAfter', pts)
             # Only keep points far enough to avoid catch robot points
-            pts = pts[0:3, pts[3, :] > 0.25]
+            pts = pts[0:4, pts[3, :] > 0.25]
+            print('ptsAfterAfter', pts)
 
             # Invert 3rd and 1st line to get XYZ in the right order
             pts = [pts[2, :], pts[0, :], pts[1, :]]
             trf = trans_rot_matrix(rgbdPos, rgbdEuler)  # check the file trans_rot_matrix for explanation
             # Apply the transfer function to get pts in real coordinates
             # pts = homtrans(trf, pts)
-            pts = np.dot(trf, pts)
+            pts = np.array(pts)
+            print('trf', trf)
+            print('pts', pts)
+            pts = homtrans(trf, pts)
 
             # Table height is 185 mm
             # we only keep points with a height between 80 and 150 mm (keep
             # margin) to identify the table by removing parasite points
-            ptsTable = pts[0:2, pts[2, :] < 0.15]
-            ptsTableInter = ptsTable[0:2, ptsTable[2, :] > 0.08]
+            ptsTable = pts[0:3, pts[2, :] < 0.15]
+            ptsTableInter = ptsTable[0:3, ptsTable[2, :] > 0.08]
             ptsTable = [ptsTableInter[0, :], ptsTableInter[1, :]]
 
             # When not dealing with target table, focus also on objects
             if tabID != targetID:
                 # To know object points, keep the one with high above 0.187m
                 # (small margin with the 0.185m of table high)
-                ptsObject = pts[0:2, pts[2, :] > 0.187]
+                ptsObject = pts[0:3, pts[2, :] > 0.187]
 
                 # Reduce angle view to focus more on objects
-                res = vrep.simxSetFloatSignal(id, 'rgbd_sensor_scan_angle', math.pi/7, vrep.simx_opmode_oneshot_wait)
+                res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/7, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res)
 
                 # take a depth picture
-                res = vrep.simxSetIntegerSignal(id, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
+                res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res)
                 # Store this picture in pts
                 pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
                 # Only keep points within 1.2 meter, to focus on the table
-                pts = pts[0:2, pts[3, :] < 1.2]
+                pts = pts[0:3, pts[3, :] < 1.2]
 
                 # Invert 3rd and 1st line to get XYZ in the right order
                 pts = [pts[2, :], pts[0, :], pts[1, :]]
                 # Apply the transfer function to get pts in real coordinates
                 # pts = homtrans(trf, pts)
-                pts = np.dot(trf, pts)
+                pts = np.array(pts)
+                pts = homtrans(trf, pts)
 
                 # To know object points, keep the one with high above 0.187m
                 # (small margin with the 0.185m of table high)
-                ptsObject_focus = pts[0:2, pts[2, :] > 0.187]
+                ptsObject_focus = pts[0:3, pts[2, :] > 0.187]
 
             # Check which table is currently analyzed
-            if tabID == objectsTablesID[1]:
+            if tabID == objectsTablesID[0]:
                 # save points of table 1 in a matrix and remove the multiple points
+
                 tempMatrix = np.round(250*ptsTable)/250
-                ptsTable1 = np.unique[[ptsTable1, tempMatrix.transpose()], 'rows']
+                c = np.vstack([ptsTable1, tempMatrix.transpose()])
+                c = c.tolist()
+                ptsTable1 = np.unique(c, return_index=True, return_inverse=True, axis=0)
+                ptsTable1 = ptsTable1[0]
+                # check again
+                # tempMatrix = np.round(250*ptsTable)/250
+                # ptsTable1 = np.unique[[[ptsTable1], [tempMatrix.transpose()]], 'rows']
+
                 tempMatrix1 = np.round(250*ptsObject)/250
                 tempMatrix2 = np.round(250*ptsObject_focus)/250
                 ptsObjects1 = np.unique[[ptsObjects1, tempMatrix1.transpose(), tempMatrix2.transpose()], 'rows']
                 # Increment the neighbour counter to send the youbot to next table neighbour
                 neighbour = neighbour + 1
-                if neighbour > 5:
+                if neighbour > 4:
                     # Visit the second table if finished with first one
                     tabToModel = table2Neighbours
-                    tabID = objectsTablesID(2)
-                    neighbour = 1
+                    tabID = objectsTablesID[1]
+                    neighbour = 0
                 fsm = 'astar'
                 print('Switching to state: ', fsm)
 
-            elif tabID == objectsTablesID[2]:
+            elif tabID == objectsTablesID[1]:
                 # save points of table 2 in a matrix and remove the multiple points
                 tempMatrix = np.round(250*ptsTable)/250
-                ptsTable2 = np.unique[[ptsTable2, tempMatrix.transpose()], 'rows']
+                ptsTable2 = np.unique[[[ptsTable2], [tempMatrix.transpose()]], 'rows']
                 tempMatrix1 = np.round(250*ptsObject)/250
                 tempMatrix2 = np.round(250*ptsObject_focus)/250
                 ptsObjects2 = np.unique[[ptsObjects2, tempMatrix1.transpose(), tempMatrix2.transpose()], 'rows']
                 # Increment the neighbour counter to send the youbot to next table neighbour
                 neighbour = neighbour + 1
-                if neighbour > 5:
+                if neighbour > 4:
                     tabID = targetID
-                    neighbour = 1
+                    neighbour = 0
 
                 fsm = 'astar'
                 print('Switching to state: ', fsm)
@@ -1276,7 +1315,7 @@ while p:
 
                 # Increment the neighbour counter to send bot to next table neighbour
                 neighbour = neighbour + 1
-                if neighbour > 4:
+                if neighbour > 3:
                     fsm = 'imageAnalysis'
                     print('Switching to state: ', fsm)
                 else:
