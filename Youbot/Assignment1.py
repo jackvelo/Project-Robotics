@@ -975,7 +975,7 @@ while p:
             if k < 3:
                 aa = rgbdPos[0] - tablesRealCenter[k, 0]
                 bb = tablesRealCenter[k, 1] - rgbdPos[1]
-                beta = math.atan2(aa,bb) - math.pi/2
+                beta = math.atan2(aa, bb) - math.pi/2
                 if bb > 0:
                     beta = beta + math.pi
             else:
@@ -994,10 +994,11 @@ while p:
             else:
                 fsm = 'modelTable'
 
+
         # In this section a picture of the table is taken and the target is determined
         elif fsm == 'findTarget':
 
-            k = discoverTableCounter
+            j = discoverTableCounter
 
             # Get scan angle of pi/4 for the depth sensor
             res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi / 4, vrep.simx_opmode_oneshot_wait)
@@ -1008,7 +1009,6 @@ while p:
             vrchk(vrep, res)
 
             # Get the point cloud from the depth sensor
-            # h = youbot_init(vrep, clientID)
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
 
             print(pointCloud)
