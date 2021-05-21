@@ -1008,7 +1008,8 @@ while p:
             vrchk(vrep, res)
 
             # Get the point cloud from the depth sensor
-            pointCloud = youbot_xyz_sensor(vrep,  h['ref'] , vrep.simx_opmode_oneshot_wait)
+            h = youbot_init(vrep, clientID)
+            pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
             # Take only the points until a distance of 1.2
 
             # Find highest point for this table
