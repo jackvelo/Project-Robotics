@@ -117,8 +117,11 @@
 
 
 
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
         # Compute the positions where we will send to robot to place the blocks on the target table
         elif fsm == 'computedestObjects':
             # If n objects to place on the target, find target table free neighbour
@@ -462,3 +465,7 @@
         end
     end
 end
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
