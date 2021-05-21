@@ -1023,16 +1023,11 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
-<<<<<<< Updated upstream
             vrep.simxSynchronousTrigger(clientID)
             vrep.simxGetPingTime(clientID)
 
-=======
-
             # print(h['ref'])
 
-
->>>>>>> Stashed changes
             # Get the point cloud from the depth sensor
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
 
@@ -1288,7 +1283,6 @@ while p:
                     fsm = 'astar'
                     print('Switching to state: ', fsm)
 
-<<<<<<< Updated upstream
         # Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
         elif fsm == 'imageAnalysis':
 
@@ -1373,10 +1367,6 @@ while p:
             #         idObject2 = idObject;
             #         centerObject2 = centerObject;
             #         distToClusterCenters2 = mean(distToClusterCenters)
-=======
-        ## Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
-        # elif fsm == 'imageAnalysis':
->>>>>>> Stashed changes
 
 
 
