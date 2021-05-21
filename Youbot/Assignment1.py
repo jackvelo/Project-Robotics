@@ -20,11 +20,6 @@ import time
 import matplotlib.pyplot as plt
 # import pandas as pd
 
-from numpy.core.multiarray import add_docstring
-from numpy.core import overrides
-
-__all__ = ['logspace', 'linspace', 'geomspace']
-
 from skimage import measure
 from skimage.draw import ellipse
 from skimage.measure import label, regionprops, regionprops_table
@@ -986,12 +981,12 @@ while p:
             else:
                 aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
                 bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
-                beta = math.atan2(aa, bb) - math.pi/2
+                beta = math.atan2(aa,bb) - math.pi/2
                 if bb > 0:
                     beta = beta + math.pi
 
             # Set the desired camera orientation
-            vrep.simxSetObjectOrientation(clientID, h['ref'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
+            vrep.simxSetObjectOrientation(clientID, h['ref'], -1,[0, 0, beta], vrep.simx_opmode_oneshot)
 
             # Checking whether we are in the target finding phase or table modelling one
             if discoverTableCounter < 3:
@@ -1002,7 +997,7 @@ while p:
         # In this section a picture of the table is taken and the target is determined
         elif fsm == 'findTarget':
 
-            j = discoverTableCounter
+            k = discoverTableCounter
 
             # Get scan angle of pi/4 for the depth sensor
             res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi / 4, vrep.simx_opmode_oneshot_wait)
@@ -1012,26 +1007,21 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
+<<<<<<< HEAD
             # print(h['ref'])
 
+=======
+>>>>>>> 62a7e04be539d1ab79b07fb9b059408d0a661aa9
             # Get the point cloud from the depth sensor
+            h = youbot_init(vrep, clientID)
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
-            sizePointCloud = pointCloud.shape
-            numPoint = sizePointCloud[1]
-
-            pointCloudID = []
-
-            for i in range(numPoint):
-                if pointCloud[4, i] < 1.2:
-                    pointCloudID.append(i)
-
-            for j, ID in enumerate(pointCloudID):
-                pointCloud.append(pointCloud[0:2, ID])
+            # Take only the points until a distance of 1.2
 
             # Find highest point for this table
             maxi = - math.inf
             for point in range(len(pointCloud)):
                 if pointCloud[1, point] > maxi:
+<<<<<<< HEAD
                     maxi = pointCloud[1, point]
 
             tablesMaxHigh[j] = maxi
@@ -1161,6 +1151,9 @@ while p:
         #     cioaicoa
 
 
+=======
+                    maxi = pointCloud[1 , point]
+>>>>>>> 62a7e04be539d1ab79b07fb9b059408d0a661aa9
 
 
 
