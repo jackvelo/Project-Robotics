@@ -36,6 +36,8 @@ from youbot_xyz_sensor import youbot_xyz_sensor
 from beacon import beacon_init, youbot_beacon
 from utils_sim import angdiff
 
+from Functions import Rotate, stopWheels
+
 # Test the python implementation of a youbot
 # Initiate the connection to the simulator.
 print('Program started')
@@ -144,7 +146,7 @@ yAxis = np.arange(-dim, dim + resolution, resolution)
 n = len(xAxis)
 
 # Create a list that stores the max high of objects on tables (to determine target)
-tablesMaxHigh = np.zeros((1,3))
+tablesMaxHigh = np.zeros((1, 3))
 
 # Make sure everything is settled before we start.
 # pause(2)
@@ -175,7 +177,7 @@ if start == 'navigation':
 
 elif start == 'findtarget':
     navigationFinished = True
-    discoverTableCounter = 1
+    discoverTableCounter = 0
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     counterSearchAlgo = 0
@@ -189,7 +191,7 @@ elif start == 'findtarget':
 
 elif start == 'ModelTable':
     navigationFinished = True
-    discoverTableCounter = 4
+    discoverTableCounter = 3
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # objectsTablesID = load('objectsTablesID.mat');
@@ -223,7 +225,7 @@ elif start == 'ModelTable':
 
 elif start == 'computedestObjects':
     navigationFinished = True
-    discoverTableCounter = 4
+    discoverTableCounter = 3
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # centerObject1 = load('centerObject1.mat');
@@ -255,7 +257,7 @@ elif start == 'computedestObjects':
 
 elif start == 'grasping':
     navigationFinished = True
-    discoverTableCounter = 4
+    discoverTableCounter = 3
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     # centerObject1 = load('centerObject1.mat');
@@ -821,7 +823,7 @@ while p:
 
             # Rotate until target point is straight ahead (measured with respect to the world's reference frame).
             # Use a proportional controller.
-            # youbotEuler(3) is the rotation around the vertical axis.
+            # youbotEuler[2] is the rotation around the vertical axis.
             if iPath >= len(path)-1:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
@@ -829,20 +831,30 @@ while p:
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
+            print('rotationAngle', rotationAngle)
+            print('youbotEuler[2]', youbotEuler[2])
 
             rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
 
             if rotateRightVel > math.pi:
                 rotateRightVel = rotateRightVel - math.pi*2
+                print('primo if')
 
             if rotateRightVel < - math.pi:
                 rotateRightVel = rotateRightVel + math.pi*2
+                print('secondo if')
 
             # Stop when the robot is at an angle close to rotationAngle
-            if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.1:
+            if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
                 rotateRightVel = 0
                 fsm = 'forward'
                 print('Switching to state: ', fsm)
+
+            # Rotate(vrep, clientID, h, rotateRightVel, path[iPath, 0], path[iPath, 1], youbotPos[0], youbotPos[1])
+
+            # rotateRightVel = 0
+            # fsm = 'forward'
+            # print('Switching to state: ', fsm)
 
         #
         # --- Forward ---
@@ -968,7 +980,7 @@ while p:
             k = discoverTableCounter
 
             # get camera position
-            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_oneshot_wait)
+            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
             aa = rgbdPos[0] - tablesRealCenter[k, 0]
@@ -988,7 +1000,7 @@ while p:
                     beta = beta + math.pi
 
             # Set the desired camera orientation
-            vrep.simxSetObjectOrientation(clientID, h['ref'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
+            vrep.simxSetObjectOrientation(clientID, h['rgbdCasing'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
 
             # Checking whether we are in the target finding phase or table modelling one
             if discoverTableCounter < 3:
@@ -997,8 +1009,6 @@ while p:
             else:
                 fsm = 'modelTable'
                 print('Switching to state: ', fsm)
-
-
 
         # In this section a picture of the table is taken and the target is determined
         elif fsm == 'findTarget':
@@ -1019,16 +1029,16 @@ while p:
             # Get the point cloud from the depth sensor
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
 
-            print(pointCloud)
+            print('pointCloud', pointCloud)
             # Take only the points until a distance of 1.2
 
             # Find highest point for this table
             maxi = - math.inf
-            for point in range(len(pointCloud)):
+            for point in range(len(pointCloud[1, :])):
                 if pointCloud[1, point] > maxi:
                     maxi = pointCloud[1, point]
 
-            tablesMaxHigh[j] = maxi
+            tablesMaxHigh[0, j] = maxi
 
             # Next table index
             discoverTableCounter = discoverTableCounter + 1
@@ -1039,9 +1049,12 @@ while p:
             objectsTablesID = []
 
             if discoverTableCounter > 2:
-                minHigh = min(tablesMaxHigh)
-                for j in range(len(tablesMaxHigh)):
-                    if tablesMaxHigh[j] == minHigh:
+                minHigh = min(tablesMaxHigh[0])
+                print('type of tablesMaxHigh', type(tablesMaxHigh))
+                print('tablesMaxHigh', tablesMaxHigh)
+                print('minimum', min(tablesMaxHigh[0]))
+                for j in range(len(tablesMaxHigh[0])):
+                    if tablesMaxHigh[0, j] == minHigh:
                         targetID = j
                     else:
                         objectsTablesID.append = j
@@ -1128,18 +1141,18 @@ while p:
                         targetNeighbours[3, :] = [a, b]
                         break
 
-                # % Initialize to empty the matrices that will store the
-                # % points taken with depth camera
+                # Initialize to empty the matrices that will store the
+                # points taken with depth camera
                 ptsTable1 = []
                 ptsTable2 = []
                 ptsTarget = []
                 ptsObjects1 = []
                 ptsObjects2 = []
 
-                # % Determine which table the robot has to model first
+                # Determine which table the robot has to model first
                 tabToModel = table1Neighbours
                 tabID = objectsTablesID[0]
-                # % Determine which neighbour has to be visited
+                # Determine which neighbour has to be visited
                 neighbour = 1
 
                 # save('table1Neighbours.mat','table1Neighbours')
@@ -1214,7 +1227,7 @@ while p:
                 # Invert 3rd and 1st line to get XYZ in the right order
                 pts = [pts[2, :], pts[0, :], pts[1, :]]
                 # Apply the transfer function to get pts in real coordinates
-                ## pts = homtrans(trf, pts)
+                # pts = homtrans(trf, pts)
                 pts = np.dot(trf, pts)
 
                 # To know object points, keep the one with high above 0.187m
@@ -1237,6 +1250,7 @@ while p:
                     tabID = objectsTablesID(2)
                     neighbour = 1
                 fsm = 'astar'
+                print('Switching to state: ', fsm)
 
             elif tabID == objectsTablesID[2]:
                 # save points of table 2 in a matrix and remove the multiple points
@@ -1267,7 +1281,7 @@ while p:
                     fsm = 'astar'
                     print('Switching to state: ', fsm)
 
-        ## Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
+        # Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
         elif fsm == 'imageAnalysis':
 
             tab1ID = objectsTablesID[0]
