@@ -966,7 +966,7 @@ while p:
             k = discoverTableCounter
 
             # get camera position
-            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1,vrep.simx_opmode_oneshot_wait)
+            [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
             aa = rgbdPos[0] - tablesRealCenter[k, 0]
@@ -986,7 +986,7 @@ while p:
                     beta = beta + math.pi
 
             # Set the desired camera orientation
-            vrep.simxSetObjectOrientation(clientID, h['ref'], -1,[0, 0, beta], vrep.simx_opmode_oneshot)
+            vrep.simxSetObjectOrientation(clientID, h['ref'], -1, [0, 0, beta], vrep.simx_opmode_oneshot)
 
             # Checking whether we are in the target finding phase or table modelling one
             if discoverTableCounter < 3:
@@ -1007,21 +1007,17 @@ while p:
             res = vrep.simxSetIntegerSignal(clientID, 'handle_xyz_sensor', 1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
-<<<<<<< HEAD
-            # print(h['ref'])
-
-=======
->>>>>>> 62a7e04be539d1ab79b07fb9b059408d0a661aa9
             # Get the point cloud from the depth sensor
-            h = youbot_init(vrep, clientID)
+            # h = youbot_init(vrep, clientID)
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
+
+            print(pointCloud)
             # Take only the points until a distance of 1.2
 
             # Find highest point for this table
             maxi = - math.inf
             for point in range(len(pointCloud)):
                 if pointCloud[1, point] > maxi:
-<<<<<<< HEAD
                     maxi = pointCloud[1, point]
 
             tablesMaxHigh[j] = maxi
@@ -1073,7 +1069,7 @@ while p:
                         table1Neighbours[k, 0] = round((table1Neighbours[k, 0] + 7.5)/resolution) + 1
                         table1Neighbours[k, 1] = round((table1Neighbours[k, 1] + 7.5)/resolution) + 1
 
-                 # Focus on table 2
+                # Focus on table 2
                 centerTable = tablesRealCenter[tab2ID, :]
 
                 for k in range(5):
@@ -1147,13 +1143,6 @@ while p:
 
 
             fsm = 'astar'
-
-        #     cioaicoa
-
-
-=======
-                    maxi = pointCloud[1 , point]
->>>>>>> 62a7e04be539d1ab79b07fb9b059408d0a661aa9
 
 
 
