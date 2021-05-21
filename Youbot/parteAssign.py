@@ -112,16 +112,164 @@
         ## Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
         elif fsm == 'imageAnalysis':
 
+            tab1ID = objectsTablesID[0]
+            xMean = np.mean(ptsTable1[:, 0])
+            yMean = np.mean(ptsTable1[:, 1])
 
+            # Remove parasite points for table (points placed to far from it)
+            ptsTable1 = np.transpose(ptsTable1)
+            a = np.sqrt((ptsTable1[0, :] - xMean)**2 + (ptsTable1[1, :] - yMean)**2)
+            ptsTable1 = ptsTable1[:, a < 0.6]
 
+            xCenter = (np.max(ptsTable1[0, :]) + np.min(ptsTable1[0, :]))/2
+            yCenter = (np.max(ptsTable1[1, :]) + np.min(ptsTable1[1, :]))/2
+            preciseCenter1 = np.zeros((1, 2))
+            preciseCenter1[0, :] = [xCenter, yCenter]
+            tablesRealCenter[tab1ID, :] = preciseCenter1
 
+            # Remove parasite points for objects (points placed to far from it)
+            ptsObjects1 = np.transpose(ptsObjects1)
+            a = np.sqrt((ptsObjects1[0, :] - xCenter)**2 + (ptsObjects1[1, :] - yCenter)**2)
+            ptsObjects1 = ptsObjects1[:, a < 0.4]
+            ptsObjects1 = np.transpose(ptsObjects1)
 
+            # Considering the second table
+            tab2ID = objectsTablesID[1]
+            xMean = np.mean(ptsTable2[:, 0])
+            yMean = np.mean(ptsTable2[:, 1])
 
-<<<<<<< Updated upstream
+            # Remove parasite points for table (points placed to far from it)
+            ptsTable2 = np.transpose(ptsTable2)
+            a = np.sqrt((ptsTable2[0, :] - xMean)**2 + (ptsTable2[1, :] - yMean)**2)
+            ptsTable2 = ptsTable2[:, a < 0.6]
 
+            xCenter = (np.max(ptsTable2[0, :]) + np.min(ptsTable2[0, :]))/2
+            yCenter = (np.max(ptsTable2[1, :]) + np.min(ptsTable2[1, :]))/2
+            preciseCenter2 = np.zeros((1, 2))
+            preciseCenter2[0, :] = [xCenter, yCenter]
+            tablesRealCenter[tab1ID, :] = preciseCenter2
 
-=======
->>>>>>> Stashed changes
+            # Remove parasite points for objects (points placed to far from it)
+            ptsObjects2 = np.transpose(ptsObjects2)
+            a = np.sqrt((ptsObjects2[0, :] - xCenter)**2 + (ptsObjects2[1, :] - yCenter)**2)
+            ptsObjects2 = ptsObjects2[:, a < 0.4]
+            ptsObjects2 = np.transpose(ptsObjects2)
+
+            # Through the ptsTarget points, we can have a more accurate idea of the target table points and center
+            # point. So update them
+            xMean = np.mean(ptsTarget[:, 0])
+            yMean = np.mean(ptsTarget[:, 1])
+
+            # Remove parasite points for table (points situated to far from it)
+            ptsTarget = np.transpose(ptsTarget)
+            a = np.sqrt((ptsTarget[0, :] - xMean)**2 + (ptsTarget[1, :] - yMean)**2)
+            ptsTarget = ptsTarget[:, a < 0.6]
+
+            xCenter = (np.max(ptsTarget[0, :]) + np.min(ptsTarget[0, :]))/2
+            yCenter = (np.max(ptsTarget[1, :]) + np.min(ptsTarget[1, :]))/2
+            preciseCenter = np.zeros((1, 2))
+            preciseCenter[0, :] = [xCenter, yCenter]
+            tablesRealCenter[targetID, :] = [xCenter, yCenter]
+
+            # plot target table
+            plt.close()
+            plt.matshow(ptsTarget)
+            plt.colorbar()
+            plt.show()
+
+            # ADD THIS
+            # from sklearn.cluster import KMeans
+
+            # # Regrouping the points to find the centers of the objects on the tables.
+            # distToClusterCenters1 = math.inf
+
+            for i in range(30):
+                kmeans = KMeans(n_clusters=5, random_state=0).fit(ptsObjects1)
+                centerObject1 = kmeans.cluster_centers_
+
+            # distToClusterCenters2 = Inf;
+
+            for i in range(30):
+                kmeans = KMeans(n_clusters=5, random_state=0).fit(ptsObjects2)
+                centerObject2 = kmeans.cluster_centers_
+
+            # Check the distances between the mean objects center points and the objects center points
+            # The table for which the distance is the higher has many space between objects. So it is table 1.
+            # So invert ID if needed
+            meanCenterObject1 = [np.mean(centerObject1[:, 0]), np.mean(centerObject1[:, 1]), np.mean(centerObject1[:, 2])]
+            meanCenterObject2 = [np.mean(centerObject2[:, 0]), np.mean(centerObject2[:, 1]), np.mean(centerObject2[:, 2])]
+            distanceToCenters1 = 0
+            distanceToCenters2 = 0
+            for i in range(5):
+                distanceToCenters1 = distanceToCenters1 + sum((meanCenterObject1 - centerObject1[i, :])**2)
+
+            for i in range(5):
+                distanceToCenters2 = distanceToCenters2 + sum((meanCenterObject2 - centerObject2[i, :])**2)
+
+            if distanceToCenters1 < distanceToCenters2:
+                temp = ptsObjects1
+                ptsObjects1 = ptsObjects2
+                ptsObjects2 = temp
+
+                temp = ptsTable1
+                ptsTable1 = ptsTable2
+                ptsTable2 = temp
+
+                # temp = idObject1;
+                # idObject1 = idObject2;
+                # idObject2 = temp;
+
+                temp = centerObject1
+                centerObject1 = centerObject2
+                centerObject2 = temp
+
+                temp = objectsTablesID[0]
+                objectsTablesID[0] = objectsTablesID[1]
+                objectsTablesID[1] = temp
+
+            # Plot table 1
+            plt.close()
+            plt.matshow(ptsTable1[0, :], ptsTable1[1, :])
+            plt.colorbar()
+            plt.show()
+
+            # Plot the clustering for table 1
+            plt.close()
+            plt.matshow(ptsObjects1[:, 0], ptsObjects1[:, 1], ptsObjects1[:, 2], centerObject1[:, 0], centerObject1[:, 1], centerObject1[:,2])
+            plt.colorbar()
+            plt.show()
+
+            # Plot table 2
+            plt.close()
+            plt.matshow(ptsTable2[0, :], ptsTable2[1, :])
+            plt.colorbar()
+            plt.show()
+
+            # Plot the clustering for table 2
+            plt.close()
+            plt.matshow(ptsObjects2[:, 0], ptsObjects2[:, 1], ptsObjects2[:, 2], centerObject2[:, 0], centerObject2[:, 1], centerObject2[:,2])
+            plt.colorbar()
+            plt.show()
+
+            # save('ptsObjects1.mat','ptsObjects1')
+            # save('ptsObjects2.mat','ptsObjects2')
+            # save('ptsTable1.mat','ptsTable1')
+            # save('ptsTable2.mat','ptsTable2')
+            # save('idObject1.mat','idObject1')
+            # save('idObject2.mat','idObject2')
+            # save('centerObject1.mat','centerObject1')
+            # save('centerObject2.mat','centerObject2')
+            # save('objectsTablesID.mat','objectsTablesID')
+            # save('objectsTablesID.mat','objectsTablesID')
+            # save('tablesCentersReal.mat','tablesCentersReal')
+
+            # fprintf('table 1 is (%f,%f)', tablesCentersReal(objectsTablesID(1),1),...
+            #     tablesCentersReal(objectsTablesID(1),2))
+
+            tableID = 0
+            objectID = 0
+            fsm = 'computedestObjects'
+
         # Compute the positions where we will send to robot to place the blocks on the target table
         elif fsm == 'computedestObjects':
             # If n objects to place on the target, find target table free neighbour
