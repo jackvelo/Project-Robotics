@@ -567,7 +567,7 @@ while p:
                         xTarget = xT
                         yTarget = yT
                         distMax = dist
-                        print(dist)
+                        # print(dist)
 
                     foundTarget = False
 
@@ -828,8 +828,6 @@ while p:
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
-            print('rotationAngle', rotationAngle)
-            print('youbotEuler[2]', youbotEuler[2])
 
             rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
 
@@ -983,13 +981,13 @@ while p:
             if k < 3:
                 aa = rgbdPos[0] - tablesRealCenter[k, 0]
                 bb = tablesRealCenter[k, 1] - rgbdPos[1]
-                beta = math.atan2(aa, bb) - math.pi/2
-                # if bb > 0:
-                #     beta = beta + math.pi
+                beta = - (math.atan2(aa, bb) - math.pi/2)
+                if bb > 0:
+                    beta = beta + math.pi
             else:
                 aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
                 bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
-                beta = math.atan2(aa, bb) - math.pi/2
+                beta = math.atan2(aa, bb) + math.pi/2
                 # if bb > 0:
                 #     beta = beta + math.pi
 
@@ -1024,8 +1022,10 @@ while p:
 
             # Get the point cloud from the depth sensor
             pointCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
-
+            pointCloud = pointCloud.transpose()
             print('pointCloud', pointCloud)
+
+            # print('pointCloud', pointCloud)
             # Take only the points until a distance of 1.2
 
             # Find highest point for this table
@@ -1046,7 +1046,7 @@ while p:
 
             if discoverTableCounter > 2:
                 minHigh = min(tablesMaxHigh[0])
-                print('tablesMaxHigh', tablesMaxHigh)
+                # print('tablesMaxHigh', tablesMaxHigh)
                 for j in range(len(tablesMaxHigh[0])):
                     if tablesMaxHigh[0, j] == minHigh:
                         targetID = j
@@ -1212,31 +1212,35 @@ while p:
 
             # Store this picture in pts
             pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
-            print('pts', pts)
+            pts = pts.transpose()
+            # print('prim sensors', pts)
 
             # Only keep points within 1.2 meter, to focus on the table
             pts = pts[0:4, pts[3, :] < 1.2]
-            print('ptsAfter', pts)
             # Only keep points far enough to avoid catch robot points
             pts = pts[0:4, pts[3, :] > 0.25]
-            print('ptsAfterAfter', pts)
+            # print('prim prima', pts)
 
             # Invert 3rd and 1st line to get XYZ in the right order
-            pts = [pts[2, :], pts[0, :], pts[1, :]]
-            trf = trans_rot_matrix(rgbdPos, rgbdEuler)  # check the file trans_rot_matrix for explanation
+            pts = np.vstack([pts[2, :], pts[0, :], pts[1, :]])
+            # print('prima', pts)
+            trf = trans_rot_matrix(rgbdEuler, rgbdPos)  # check the file trans_rot_matrix for explanation
             # Apply the transfer function to get pts in real coordinates
             # pts = homtrans(trf, pts)
-            pts = np.array(pts)
-            print('trf', trf)
-            print('pts', pts)
+            # pts = np.array(pts)
+
             pts = homtrans(trf, pts)
+            # print('dopo', pts)
 
             # Table height is 185 mm
             # we only keep points with a height between 80 and 150 mm (keep
             # margin) to identify the table by removing parasite points
             ptsTable = pts[0:3, pts[2, :] < 0.15]
+            # print('prima', ptsTable)
             ptsTableInter = ptsTable[0:3, ptsTable[2, :] > 0.08]
-            ptsTable = [ptsTableInter[0, :], ptsTableInter[1, :]]
+            # print('primaInter', ptsTableInter)
+            ptsTable = np.vstack([ptsTableInter[0, :], ptsTableInter[1, :]])
+            print('dopo', tabID)
 
             # When not dealing with target table, focus also on objects
             if tabID != targetID:
@@ -1253,11 +1257,12 @@ while p:
                 vrchk(vrep, res)
                 # Store this picture in pts
                 pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
+                pts = pts.transpose()
                 # Only keep points within 1.2 meter, to focus on the table
                 pts = pts[0:3, pts[3, :] < 1.2]
 
                 # Invert 3rd and 1st line to get XYZ in the right order
-                pts = [pts[2, :], pts[0, :], pts[1, :]]
+                pts = np.vstack([pts[2, :], pts[0, :], pts[1, :]])
                 # Apply the transfer function to get pts in real coordinates
                 # pts = homtrans(trf, pts)
                 pts = np.array(pts)
@@ -1272,7 +1277,11 @@ while p:
                 # save points of table 1 in a matrix and remove the multiple points
 
                 tempMatrix = np.round(250*ptsTable)/250
-                c = np.vstack([ptsTable1, tempMatrix.transpose()])
+                # print('ptsTable', ptsTable)
+                # print('ptsTable1', ptsTable1)
+                # print('tempMatrix', tempMatrix)
+
+                c = np.vstack([ptsTable, tempMatrix])
                 c = c.tolist()
                 ptsTable1 = np.unique(c, return_index=True, return_inverse=True, axis=0)
                 ptsTable1 = ptsTable1[0]
@@ -1280,9 +1289,18 @@ while p:
                 # tempMatrix = np.round(250*ptsTable)/250
                 # ptsTable1 = np.unique[[[ptsTable1], [tempMatrix.transpose()]], 'rows']
 
+                print('ptsTable', ptsTable)
+                print('ptsObject', ptsObject)
+                print('ptsObject_focus', ptsObject_focus)
+                # print('tempMatrix', tempMatrix)
+
                 tempMatrix1 = np.round(250*ptsObject)/250
                 tempMatrix2 = np.round(250*ptsObject_focus)/250
-                ptsObjects1 = np.unique[[ptsObjects1, tempMatrix1.transpose(), tempMatrix2.transpose()], 'rows']
+                c = np.vstack([ptsTable, tempMatrix1, tempMatrix2])
+                c = c.tolist()
+                ptsObjects1 = np.unique(c, return_index=True, return_inverse=True, axis=0)
+                ptsObjects1 = ptsObjects1[0]
+                # ptsObjects1 = np.unique[[ptsObjects1, tempMatrix1.transpose(), tempMatrix2.transpose()], 'rows']
                 # Increment the neighbour counter to send the youbot to next table neighbour
                 neighbour = neighbour + 1
                 if neighbour > 4:
@@ -1295,11 +1313,19 @@ while p:
 
             elif tabID == objectsTablesID[1]:
                 # save points of table 2 in a matrix and remove the multiple points
+
                 tempMatrix = np.round(250*ptsTable)/250
-                ptsTable2 = np.unique[[[ptsTable2], [tempMatrix.transpose()]], 'rows']
+                c = np.vstack([ptsTable, tempMatrix])
+                c = c.tolist()
+                ptsTable2 = np.unique(c, return_index=True, return_inverse=True, axis=0)
+                ptsTable2 = ptsTable2[0]
                 tempMatrix1 = np.round(250*ptsObject)/250
                 tempMatrix2 = np.round(250*ptsObject_focus)/250
-                ptsObjects2 = np.unique[[ptsObjects2, tempMatrix1.transpose(), tempMatrix2.transpose()], 'rows']
+                c = np.vstack([ptsTable, tempMatrix1, tempMatrix2])
+                c = c.tolist()
+                ptsObjects2 = np.unique(c, return_index=True, return_inverse=True, axis=0)
+                ptsObjects2 = ptsObjects2[0]
+
                 # Increment the neighbour counter to send the youbot to next table neighbour
                 neighbour = neighbour + 1
                 if neighbour > 4:
