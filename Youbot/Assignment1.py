@@ -19,6 +19,7 @@ import sys
 import time
 import string
 from sympy import *
+from scipy.optimize import fsolve, root
 import matplotlib.pyplot as plt
 # from sklearn.cluster import KMeans
 # import pandas as pd
@@ -818,6 +819,9 @@ while p:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
 
+            if iPath >= len(path)-1:
+                iPath = len(path)-1
+
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
             rotationAngle = math.atan2(a, b)
@@ -860,7 +864,7 @@ while p:
                 # The tolerance has been determined by experiments
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
-                distance = math.sqrt(a**2 + b**2) # distance between robot and goal
+                distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
                 if not navigationFinished and abs(distance) < .5:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
@@ -873,9 +877,8 @@ while p:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
                     fsm = 'rotate'
-                    print('Switching to state: ', fsm)
 
-                    if iPath >= len(path)-1:
+                    if len(path)-1 <= iPath < len(path):
 
                         if discoverTableCounter < 3:
                             fsm = 'rotateToCenter'
@@ -889,9 +892,24 @@ while p:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                        elif objectID < 5:
+                    elif iPath == len(path):
+                        fsm = 'forward'
+                        iPath = iPath - 1
+                        forwBackVel = - 1
+                        a = path[iPath, 0] - youbotPos[0]
+                        b = youbotPos[1] - path[iPath, 1]
+                        distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
+                        if navigationFinished and abs(distance) < .1:
+                            forwBackVel = 0  # Stop the robot.
+                            iPath = iPath + 1
                             fsm = 'rotateAndSlide'
                             print('Switching to state: ', fsm)
+
+                    # elif iPath > len(path):
+                    #     if objectID < 5:
+                    #         print('if')
+                    #         fsm = 'rotateAndSlide'
+                    #         print('Switching to state: ', fsm)
 
                 prevPosition = [youbotPos[0], youbotPos[1]]
 
@@ -1654,17 +1672,28 @@ while p:
 
                 a = centerToReach[0] - youbotPos[0]
                 b = centerToReach[1] - youbotPos[1]
-                angle = math.atan2(a, b)
+                rotationAngle = math.atan2(a, b)
 
-                # Find the angle to ensure table on the left
-                if youbotPos[1] >= centerToReach[1]:
-                    angle = - angle - math.pi/2
-                else:
-                    angle = math.pi - angle - math.pi/2
+                rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
+
+                if rotateRightVel > math.pi:
+                    rotateRightVel = rotateRightVel - math.pi*2
+
+                if rotateRightVel < - math.pi:
+                    rotateRightVel = rotateRightVel + math.pi*2
+
+                if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
+                    rotateRightVel = 0
+
+                # # Find the angle to ensure table on the left
+                # if youbotPos[1] >= centerToReach[1]:
+                #     angle = - angle - math.pi/2
+                # else:
+                #     angle = math.pi - angle - math.pi/2
 
                 # Launch the rotation
                 rotateRightVel = 1.7
-                rotate2(rotateRightVel, angle, h, clientID, vrep)
+                rotate2(rotateRightVel, rotationAngle, h, clientID, vrep)
                 rotateRightVel = 0
 
                 # Proceed to the computation to know how far we are from
@@ -1677,15 +1706,15 @@ while p:
                     angle = angle + math.pi
 
                 closestPoint = [(centerToReach[0] + 0.63 * math.cos(angle)), (centerToReach[1] + 0.63 * math.sin(angle))]
-                print('closestPoint', closestPoint)
+                # print('closestPoint', closestPoint)
 
                 totDist = np.sqrt((startingPoint[0] - closestPoint[0])**2 + (startingPoint[1] - closestPoint[1])**2)
-                print('totDist', totDist)
+                # print('totDist', totDist)
 
             travelledDist = 0
 
             # Make the robot slide until it has covered the distance we want
-            while travelledDist < totDist:
+            while travelledDist < totDist - .05:
                 vrep.simxSynchronousTrigger(clientID)
                 vrep.simxGetPingTime(clientID)
                 if slideCloser:
@@ -1696,7 +1725,7 @@ while p:
                 [res, youbotPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
                 vrchk(vrep, res, True)
                 travelledDist = np.sqrt((startingPoint[0] - youbotPos[0])**2 + (startingPoint[1] - youbotPos[1])**2)
-                print('travelledDist', travelledDist)
+                # print('travelledDist', travelledDist)
 
             # Stops wheels if position reached
             res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
@@ -1737,7 +1766,7 @@ while p:
 
             a = rgbdPos[0] - centerObject[objectID, 0]
             b = centerObject[objectID, 1] - rgbdPos[1]
-            angle = math.atan2(a, b) - math.pi/2
+            angle = math.atan2(a, b) + math.pi/2
 
             if centerObject[objectID, 1] - rgbdPos[1] > 0:
                 angle = angle + math.pi
@@ -1775,14 +1804,25 @@ while p:
             ptsObject = homtrans(trf, pts)
 
             # Get points high enough (= remove table points)
-            ptsObjectT = ptsObject[:, ptsObject[2, :] > 0.187]
-            ptsObject = ptsObjectT.transpose()
+            ptsObject = ptsObject[:, ptsObject[2, :] > 0.187]
+            print('ptsObj', ptsObject)
+            # ptsObject = ptsObjectT.transpose()
 
             # Focus on points with X and Y distances to the centers smaller than 0.06 to focus on object
             # ptsObject = np.unique([(ptsObject[ptsObject[:, 0]]) > (centerObject[objectID, 0]-0.06), 0: 2], 'rows')
-            ptsObject = ptsObject[(ptsObject[:, 0]) < (centerObject[objectID, 0]+0.06), :]
-            ptsObject = ptsObject[(ptsObject[:, 1]) > (centerObject[objectID, 1]-0.06), :]
-            ptsObject = ptsObject[(ptsObject[:, 1]) < (centerObject[objectID, 1]+0.06), :]
+            # a1 = centerObject[objectID, 0]-0.06
+            # print('a1', a1)
+            ptsObject = ptsObject[:, ptsObject[0, :] > centerObject[objectID, 0]-0.06]
+            ptsObject = ptsObject[:, ptsObject[0, :] < centerObject[objectID, 0]+0.06]
+            ptsObject = ptsObject[:, ptsObject[1, :] > centerObject[objectID, 1]-0.06]
+            ptsObject = ptsObject[:, ptsObject[1, :] < centerObject[objectID, 1]+0.06]
+            plt.close()
+            ax = plt.axes(projection='3d')
+            ax.scatter3D(ptsObject[0, :], ptsObject[1, :], ptsObject[2, :])
+            # ax.scatter3D(centerObject1[:, 0], centerObject1[:, 1], centerObject1[:, 2])
+            plt.title('Objects points and cluster centers - Table 1')
+            plt.show()
+
 
             fsm = 'armMotion'
             print('Switching to state: ', fsm)
@@ -1799,18 +1839,25 @@ while p:
                 [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
                 vrchk(vrep, res, True)
 
-                gripPos = [0, 0.166, 0]
+                gripPos = np.array([0, 0.166, 0])
                 trf = trans_rot_matrix(youbotEuler, youbotPos)  # check the file trans_rot_matrix for explanation
                 # Apply transfer function to get real gripper coordinates
                 gripPos = homtrans(trf, gripPos.transpose())
 
                 a = np.array(ptsObject[:, 0] - gripPos[0])
+                # print('a', a)
                 b = np.array(ptsObject[:, 1] - gripPos[1])
+                # print('b', b)
                 distToGrip = np.hypot(a, b)
+                # print('distTogrip', distToGrip)
                 minDist = np.min(np.hypot(a, b))
+                # print('mindist', minDist)
 
                 # Among the object points, find the one which is the closer to the gripper
-                indexNearestPoint = string.find(distToGrip == minDist, 0)
+                indexNearestPoint = np.where(distToGrip == minDist)
+                # print('indexNearestPoint', indexNearestPoint)
+                indexNearestPoint = indexNearestPoint[0]
+
 
                 # Plot the given configuration : object, bot, gripper,
                 # camera, object center, nearest object point from bot
@@ -1832,7 +1879,7 @@ while p:
                 if centerObject[objectID, 1] - gripPos[1] > 0:
                     angleJ1 = angleJ1 + math.pi
 
-             # Put the gripper in vertical position
+            # Put the gripper in vertical position
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][1], 0, vrep.simx_opmode_oneshot)
             vrchk(vrep, res, True)
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][2], 0, vrep.simx_opmode_oneshot)
@@ -1868,18 +1915,33 @@ while p:
                 DistGripObject = np.sqrt((centerObject[objectID, 0] - gripPos[0])**2 + (centerObject[objectID, 1] - gripPos[1])**2)
 
                 # System of equations to find angles to take
-                phi2, phi3 = symbols('phi2 phi3')
-                eq1 = length2*math.sin(phi2) + length3*math.sin(phi2 + phi3) + length4 == DistGripObject
-                eq2 = length2*math.cos(phi2) + length3*math.cos(phi2 + phi3) == heightDiff
+                # phi2, phi3 = symbols('phi2 phi3')
 
-                # Restrict the search interval to get desired angles values
-                searchInterval = [[-1.5707963705063, 1.308996796608],
-                                  [0, 2.2863812446594]]
-                S = vpasolve([eq1 eq2], [phi2 phi3], searchInterval)
+                def func(phi):
+                    return [length2 * math.sin(phi[0]) + length3 * math.sin(phi[0] + phi[1]) + length4 - DistGripObject,
+                            length2 * math.cos(phi[0]) + length3 * math.cos(phi[0] + phi[1]) - heightDiff]
+                # eq1 = lambda phi2, phi3 : length2 * sin(phi2) + length3 * sin(phi2 + phi3) + length4 - DistGripObject
+                # eq2 = lambda phi2,phi3 : length2 * cos(phi2) + length3 * cos(phi2 + phi3) - heightDiff
+                # eq1 = length2 * sin(phi2) + length3 * sin(phi2 + phi3) + length4 - DistGripObject
+                # eq2 = length2 * cos(phi2) + length3 * cos(phi2 + phi3) - heightDiff
+
+                # # Restrict the search interval to get desired angles values
+                # searchInterval1 = (-1.5707963705063, 1.308996796608)
+                # searchInterval2 = (0, 2.2863812446594)
+                # # #
+                # x0 = searchInterval1[1]
+                # y0 = searchInterval2[1]
+                xguess = np.array([0, 0])
+                # f = np.array([eq1, eq2])
+
+                # S = nsolve((eq1, eq2), (phi2, phi3), (searchInterval1, searchInterval2), solver='bisect', verify=False)
+                S = root(func, xguess)
+                print('S', S)
+                # print('S1', S1)
                 interPhi2 = S.phi2
                 interPhi3 = S.phi3
 
-                Phi4  = pi/2 - interPhi2(1) - interPhi3(1)
+                Phi4  = math.pi/2 - interPhi2(1) - interPhi3(1)
 
             # Orientate arms with the angles just computed
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][2], interPhi3[0], vrep.simx_opmode_oneshot)
@@ -1924,7 +1986,7 @@ while p:
 
                 # If the robot is supposed to grasp object of table 2
                 if tableID == 2:
-                    disp('Grasping Finished')
+                    print('Grasping Finished')
                     p = False
 
             # Go back to rest position.

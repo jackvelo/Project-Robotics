@@ -170,6 +170,8 @@ def Rotate(vrep, id, h, rotateRightVel, xgoal, ygoal, xbot, ybot):
 
 def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
 
+    print('eccomi')
+
     # The orientation of youbot is obtained:
     [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
     vrchk(vrep, res, True)
@@ -184,30 +186,33 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
     # First quadrant
 
     if math.pi/2 <= angleGoal <= math.pi:
+        print('eccomi1')
 
         if 0 < angleBot < angleGoal and angleGoal- math.pi < angleBot < 0:
             # Turn left
             fsm = 'left'
-
-        if  math.pi > angleBot > angleGoal and -math.pi < angleBot < angleGoal - math.pi:
-            # Turn left
+        else:
+            # Turn right
             fsm = 'right'
 
     # Second quadrant
 
     if -math.pi <= angleGoal <= -math.pi/2:
+        print('eccomi2')
 
         if -math.pi < angleBot < angleGoal and pi > angleBot > angleGoal + math.pi:
+            print('eccomiolè')
             # Turn left
             fsm = 'left'
 
-        if 0 > angleBot > angleGoal and 0 < angleBot < angleGoal + math.pi:
+        else:
             # Turn right
             fsm = 'right'
 
     # Third quadrant
 
     if -math.pi/2 <= angleGoal <= 0:
+        print('eccomi3')
 
         if -math.pi < angleBot < angleGoal and math.pi > angleBot > angleGoal + math.pi:
             # Turn left
@@ -220,6 +225,7 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
     # Fourth quadrant
 
     if 0 <= angleGoal <= math.pi/2:
+        print('eccomi4')
 
         if 0 < angleBot < angleGoal and 0 > angleBot > angleGoal - math.pi:
             # Turn left
@@ -232,31 +238,46 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
     # Turn left
 
     if fsm == 'left':
+        print('eccomileft')
 
         while rotation:
 
+            vrep.simxSynchronousTrigger(clientID)
+            vrep.simxGetPingTime(clientID)
+
             # Rotation until reach angleGoal:
             # set target velocity of the joint to 0:
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[0], rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[1], rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][1], rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[2], -rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][2], -rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[3], -rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][3], -rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
 
             # When the rotation is done move to the next state
-            if abs(angdiff(angleGoal, youbotEuler[2])) < .01 and abs(angdiff(prevOrientation, youbotEuler[2])) < .01:
+            if abs(angdiff(angleGoal, youbotEuler[2])) < .05 and abs(angdiff(prevOrientation, youbotEuler[2])) < .05:
 
-                   # stop the rotation
-                  stopWheels(h, clientID, vrep )
+                # Call the function to stop the rotation
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][1], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][2], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][3], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
 
-                  # Stop the loop
-                  rotation = False
+                # Stop the loop
+                rotation = False
 
             prevOrientation = youbotEuler[2]
             [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h.ref, -1, vrep.simx_opmode_buffer)
@@ -265,31 +286,46 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
     # Turn right
 
     if fsm == 'right':
+        print('eccomiright')
 
         while rotation:
 
+            vrep.simxSynchronousTrigger(clientID)
+            vrep.simxGetPingTime(clientID)
+
             # Rotation until reach angleGoal
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[0], -rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], -rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[1], -rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][1], -rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[2], rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][2], rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
             # set target velocity of the joint to 0
-            vrep.simxSetJointTargetVelocity(clientID, h.wheelJoints[3], rotateRightVel, vrep.simx_opmode_oneshot)
+            vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][3], rotateRightVel, vrep.simx_opmode_oneshot)
             vrchk(vrep, res)
 
             # When the rotation is done move to the next state.
-            if abs(angdiff(angleGoal, youbotEuler[2])) < .01 and abs(angdiff(prevOrientation, youbotEuler[2])) < .01:
+            if abs(angdiff(angleGoal, youbotEuler[2])) < .05 and abs(angdiff(prevOrientation, youbotEuler[2])) < .05:
 
-                  # Call the function to stop the rotation
-                  stopWheels(h, clientID, vrep)
+                # Call the function to stop the rotation
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][1], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][2], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
+                # set target velocity of the joint to 0
+                res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][3], 0, vrep.simx_opmode_oneshot)
+                vrchk(vrep, res)
 
-                  # Stop the loop
-                  rotation = False
+                # Stop the loop
+                rotation = False
 
             prevOrientation = youbotEuler[2]
             [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
