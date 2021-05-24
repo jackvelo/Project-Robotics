@@ -172,7 +172,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'grasping'
+start = 'imageAnalysis'
 
 if start == 'navigation':
     navigationFinished = False
@@ -1474,14 +1474,14 @@ while p:
             # Regrouping the points to find the centers of the objects on the tables.
             distToClusterCenters1 = math.inf
 
-            kmeans = KMeans(init="random", n_clusters=5, n_init=30, max_iter=300, random_state=None)
+            kmeans = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
             kmeans.fit(ptsObjects1.transpose())
             centerObject1 = kmeans.cluster_centers_
             idObject1 = kmeans.labels_
 
             distToClusterCenters2 = math.inf
 
-            kmeans = KMeans(init="random", n_clusters=5, n_init=30, max_iter=300, random_state=None)
+            kmeans = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
             kmeans.fit(ptsObjects2.transpose())
             centerObject2 = kmeans.cluster_centers_
             idObject2 = kmeans.labels_
