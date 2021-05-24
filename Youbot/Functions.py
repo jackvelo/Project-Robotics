@@ -170,8 +170,6 @@ def Rotate(vrep, id, h, rotateRightVel, xgoal, ygoal, xbot, ybot):
 
 def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
 
-    print('eccomi')
-
     # The orientation of youbot is obtained:
     [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
     vrchk(vrep, res, True)
@@ -186,59 +184,54 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
     # First quadrant
 
     if math.pi/2 <= angleGoal <= math.pi:
-        print('eccomi1')
 
-        if 0 < angleBot < angleGoal and angleGoal- math.pi < angleBot < 0:
+        if 0 < angleBot < angleGoal or angleGoal - math.pi < angleBot < 0:
             # Turn left
             fsm = 'left'
-        else:
+
+        if math.pi > angleBot > angleGoal or -math.pi < angleBot < angleGoal - math.pi:
             # Turn right
             fsm = 'right'
 
     # Second quadrant
 
     if -math.pi <= angleGoal <= -math.pi/2:
-        print('eccomi2')
 
-        if -math.pi < angleBot < angleGoal and pi > angleBot > angleGoal + math.pi:
-            print('eccomiolè')
+        if -math.pi < angleBot < angleGoal or math.pi > angleBot > angleGoal + math.pi:
             # Turn left
             fsm = 'left'
 
-        else:
+        if 0 > angleBot > angleGoal or 0 < angleBot < angleGoal + math.pi:
             # Turn right
             fsm = 'right'
 
     # Third quadrant
 
     if -math.pi/2 <= angleGoal <= 0:
-        print('eccomi3')
 
-        if -math.pi < angleBot < angleGoal and math.pi > angleBot > angleGoal + math.pi:
+        if -math.pi < angleBot < angleGoal or math.pi > angleBot > angleGoal + math.pi:
             # Turn left
             fsm = 'left'
 
-        if 0 > angleBot > angleGoal and 0 < angleBot < angleGoal + math.pi:
+        if 0 > angleBot > angleGoal or 0 < angleBot < angleGoal + math.pi:
             # Turn right
             fsm = 'right'
 
     # Fourth quadrant
 
     if 0 <= angleGoal <= math.pi/2:
-        print('eccomi4')
 
-        if 0 < angleBot < angleGoal and 0 > angleBot > angleGoal - math.pi:
+        if 0 < angleBot < angleGoal or 0 > angleBot > angleGoal - math.pi:
             # Turn left
             fsm = 'left'
 
-        if math.pi > angleBot > angleGoal and -math.pi < angleBot < angleGoal - math.pi:
+        if math.pi > angleBot > angleGoal or -math.pi < angleBot < angleGoal - math.pi:
             # Turn right
             fsm = 'right'
 
     # Turn left
 
     if fsm == 'left':
-        print('eccomileft')
 
         while rotation:
 
@@ -280,13 +273,12 @@ def rotate2(rotateRightVel, angleGoal, h, clientID, vrep):
                 rotation = False
 
             prevOrientation = youbotEuler[2]
-            [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h.ref, -1, vrep.simx_opmode_buffer)
+            [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
             vrchk(vrep, res, True)
 
     # Turn right
 
     if fsm == 'right':
-        print('eccomiright')
 
         while rotation:
 

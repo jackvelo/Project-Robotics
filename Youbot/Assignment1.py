@@ -830,11 +830,11 @@ while p:
 
             if rotateRightVel > math.pi:
                 rotateRightVel = rotateRightVel - math.pi*2
-                print('primo if')
+                # print('primo if')
 
             if rotateRightVel < - math.pi:
                 rotateRightVel = rotateRightVel + math.pi*2
-                print('secondo if')
+                # print('secondo if')
 
             # Stop when the robot is at an angle close to rotationAngle
             if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
@@ -878,7 +878,7 @@ while p:
                     iPath = iPath + 1
                     fsm = 'rotate'
 
-                    if len(path)-1 <= iPath < len(path):
+                    if len(path)-1 <= iPath:
 
                         if discoverTableCounter < 3:
                             fsm = 'rotateToCenter'
@@ -892,18 +892,22 @@ while p:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                    elif iPath == len(path):
-                        fsm = 'forward'
-                        iPath = iPath - 1
-                        forwBackVel = - 1
-                        a = path[iPath, 0] - youbotPos[0]
-                        b = youbotPos[1] - path[iPath, 1]
-                        distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
-                        if navigationFinished and abs(distance) < .1:
-                            forwBackVel = 0  # Stop the robot.
-                            iPath = iPath + 1
+                        elif objectID < 5:
                             fsm = 'rotateAndSlide'
                             print('Switching to state: ', fsm)
+
+                    # elif iPath == len(path):
+                    #     fsm = 'forward'
+                    #     iPath = iPath - 1
+                    #     forwBackVel = - 1
+                    #     a = path[iPath, 0] - youbotPos[0]
+                    #     b = youbotPos[1] - path[iPath, 1]
+                    #     distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
+                    #     if navigationFinished and abs(distance) < .1:
+                    #         forwBackVel = 0  # Stop the robot.
+                    #         iPath = iPath + 1
+                    #         fsm = 'rotateAndSlide'
+                    #         print('Switching to state: ', fsm)
 
                     # elif iPath > len(path):
                     #     if objectID < 5:
@@ -1779,11 +1783,11 @@ while p:
             vrep.simxSetObjectOrientation(clientID, h['rgbdCasing'], -1, [0, 0, angle], vrep.simx_opmode_oneshot)
 
             # get rgb camera angle
-            [res, rgbdEuler] = vrep.simxGetObjectOrientation(clientID, h['rgbdCasing'], -1,vrep.simx_opmode_oneshot_wait)
+            [res, rgbdEuler] = vrep.simxGetObjectOrientation(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
 
             # Use a very small view to focus on the object
-            res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/8, vrep.simx_opmode_oneshot_wait)
+            res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/12, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res)
 
             # take a depth picture
@@ -1894,6 +1898,19 @@ while p:
             vrchk(vrep, res, True)
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][4], 0, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
+
+            # Stops wheels if position reached
+            res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res)
+            # set target velocity of the joint to 0
+            res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][1], 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res)
+            # set target velocity of the joint to 0
+            res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][2], 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res)
+            # set target velocity of the joint to 0
+            res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][3], 0, vrep.simx_opmode_oneshot)
+            vrchk(vrep, res)
 
             # Wait for the arm to get the given angles
             # time.sleep(1)
