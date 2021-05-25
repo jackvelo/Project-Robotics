@@ -21,7 +21,7 @@ import string
 from sympy import *
 from scipy.optimize import fsolve, root
 import matplotlib.pyplot as plt
-# from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans
 # import pandas as pd
 
 from skimage import measure
@@ -271,7 +271,7 @@ elif start == 'grasping':
     destObjects = np.loadtxt("savedestObjects.txt", dtype='f', delimiter=',')
     centerTarget = np.loadtxt("savecenterTarget.txt", dtype='f', delimiter=',')
 
-    objectID = 3
+    objectID = 0
     discoverTableCounter = 3
     tabID = targetID
     neighbour = 4
@@ -1704,7 +1704,7 @@ while p:
 
                 a = youbotPos[0] - centerToReach[0]
                 b = centerToReach[1] - youbotPos[1]
-                rotationAngle = math.atan2(a, b) + math.pi/2
+                rotationAngle = math.atan2(a, b) + 15*math.pi/32
 
                 # rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
                 #
@@ -1734,30 +1734,30 @@ while p:
                 b = startingPoint[0] - centerToReach[0]
                 angle = math.atan2(a, b)
 
-                if startingPoint[0] < centerToReach[0]:
-                    angle = angle + math.pi
+                # if startingPoint[0] < centerToReach[0]:
+                #     angle = angle + math.pi
 
                 closestPoint = [(centerToReach[0] + 0.63 * math.cos(angle)), (centerToReach[1] + 0.63 * math.sin(angle))]
                 # print('closestPoint', closestPoint)
 
                 totDist = np.sqrt((startingPoint[0] - closestPoint[0])**2 + (startingPoint[1] - closestPoint[1])**2)
-                # print('totDist', totDist)
+                print('totDist', totDist)
 
             travelledDist = 0
 
             # Make the robot slide until it has covered the distance we want
-            while travelledDist < totDist - .1:
+            while travelledDist < totDist - .06:
                 vrep.simxSynchronousTrigger(clientID)
                 vrep.simxGetPingTime(clientID)
                 if slideCloser:
-                    h = youbot_drive(vrep, h, 0, 0.1, 0)
+                    h = youbot_drive(vrep, h, 0, 0.2, 0)
                 else:
                     h = youbot_drive(vrep, h, 0, -0.2, 0)
 
                 [res, youbotPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
                 vrchk(vrep, res, True)
                 travelledDist = np.sqrt((startingPoint[0] - youbotPos[0])**2 + (startingPoint[1] - youbotPos[1])**2)
-                # print('travelledDist', travelledDist)
+                print('travelledDist', travelledDist)
 
             # Stops wheels if position reached
             res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
@@ -1804,8 +1804,8 @@ while p:
             b = centerObject[objectID, 1] - rgbdPos[1]
             angle = math.atan2(a, b) + math.pi/2
 
-            if centerObject[objectID, 1] - rgbdPos[1] > 0:
-                angle = angle + math.pi
+            # if centerObject[objectID, 1] - rgbdPos[1] > 0:
+            #     angle = angle + math.pi
 
             # Orientate rgbd camera to the object of interest
             vrep.simxSetObjectOrientation(clientID, h['rgbdCasing'], -1, [0, 0, angle], vrep.simx_opmode_oneshot)
@@ -1868,7 +1868,7 @@ while p:
             # Condition verify if we have to grasp an object
             if not holdObject:
                 # get rgb position
-                [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1,vrep.simx_opmode_oneshot_wait)
+                [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res, True)
 
                 # get youbotAngle
@@ -1891,9 +1891,11 @@ while p:
 
                 # Among the object points, find the one which is the closer to the gripper
                 indexNearestPoint = np.where(distToGrip == minDist)
+                print('indexNearestPointbef', indexNearestPoint)
                 # print('indexNearestPoint', indexNearestPoint)
                 indexNearestPoint = indexNearestPoint[0]
-                print('indexNearestPoint', indexNearestPoint)
+                indexNearestPoint = indexNearestPoint[0]
+                print('indexNearestPointaft', indexNearestPoint)
 
                 # Plot the given configuration : object, bot, gripper,
                 # camera, object center, nearest object point from bot
@@ -1904,8 +1906,18 @@ while p:
                 #      ptsObject(indexNearestPoint,1), ptsObject(indexNearestPoint,2), '*' );
 
                 # Re-adjust center of the object to get a better manipulation with the gripper
-                centerObject[objectID, 0] = (centerObject[objectID, 0] + ptsObject[0, indexNearestPoint])/2
-                centerObject[objectID, 1] = (centerObject[objectID, 1] + ptsObject[1, indexNearestPoint])/2
+                kmeans = KMeans(init="random", n_clusters=1, n_init=50, max_iter=300, random_state=None)
+                kmeans.fit(ptsObject.transpose())
+                ptsObject = kmeans.cluster_centers_
+                print(ptsObject)
+                # idObject1 = kmeans.labels_
+
+                # centerObject[objectID, 0] = ptsObject[0, 0]
+                # centerObject[objectID, 1] = ptsObject[0, 1]
+                # centerObject[objectID, 2] = ptsObject[0, 2]
+
+                centerObject[objectID, 0] = (centerObject[objectID, 0] + ptsObject[0, 0])/2
+                centerObject[objectID, 1] = (centerObject[objectID, 1] + ptsObject[0, 1])/2
 
                 # Find the angle of first joint, orientation to the object
                 a = gripPos[0] - centerObject[objectID, 0]
@@ -1983,10 +1995,6 @@ while p:
                 def func(phi):
                     return [length2 * math.sin(phi[0]) + length3 * math.sin(phi[0] + phi[1]) + length4 - DistGripObject,
                             length2 * math.cos(phi[0]) + length3 * math.cos(phi[0] + phi[1]) - heightDiff]
-                # eq1 = lambda phi2, phi3 : length2 * sin(phi2) + length3 * sin(phi2 + phi3) + length4 - DistGripObject
-                # eq2 = lambda phi2,phi3 : length2 * cos(phi2) + length3 * cos(phi2 + phi3) - heightDiff
-                # eq1 = length2 * sin(phi2) + length3 * sin(phi2 + phi3) + length4 - DistGripObject
-                # eq2 = length2 * cos(phi2) + length3 * cos(phi2 + phi3) - heightDiff
 
                 # # Restrict the search interval to get desired angles values
                 searchInterval1 = (-1.5707963705063, 1.308996796608)
@@ -1995,9 +2003,7 @@ while p:
                 x0 = searchInterval1[1]
                 y0 = searchInterval2[1]
                 xguess = np.array([x0, y0])
-                # f = np.array([eq1, eq2])
 
-                # S = nsolve((eq1, eq2), (phi2, phi3), (searchInterval1, searchInterval2), solver='bisect', verify=False)
                 S = root(func, xguess, method='anderson')
                 # print('S1', S1)
                 interPhi2 = S.x[0]
@@ -2013,14 +2019,23 @@ while p:
             vrep.simxGetPingTime(clientID)
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][2], interPhi3, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
+            for i in range(10):
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
 
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][3], Phi4, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
             # time.sleep(2)
+            for i in range(10):
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
 
             res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][1], interPhi2, vrep.simx_opmode_oneshot_wait)
             vrchk(vrep, res, True)
             # time.sleep(2)
+            for i in range(10):
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
 
             arm = True
             armCounter = 0
@@ -2033,20 +2048,35 @@ while p:
                     arm = False
 
             if not holdObject:
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
                 # Close the gripper if not object hold
                 res = vrep.simxSetIntegerSignal(clientID, 'gripper_open', 0, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res)
-                # Ensure gripper well closed before continue
-                # time.sleep(2)
-                arm = True
-                armCounter = 0
-                while arm:
+
+                # arm = True
+                # armCounter = 0
+                # while arm:
+                #     vrep.simxSynchronousTrigger(clientID)
+                #     vrep.simxGetPingTime(clientID)
+                #
+                # armCounter += 1
+                # if armCounter == 1:
+                #     arm = False
+                for i in range(20):
                     vrep.simxSynchronousTrigger(clientID)
                     vrep.simxGetPingTime(clientID)
-
-                    armCounter += 1
-                    if armCounter == 50:
-                        arm = False
+                # # Ensure gripper well closed before continue
+                # # time.sleep(2)
+                # arm = True
+                # armCounter = 0
+                # while arm:
+                #     vrep.simxSynchronousTrigger(clientID)
+                #     vrep.simxGetPingTime(clientID)
+                #
+                #     armCounter += 1
+                #     if armCounter == 50:
+                #         arm = False
 
                 # We have to know that we are now holding an object
                 holdObject = True
@@ -2066,25 +2096,28 @@ while p:
                 res = vrep.simxSetJointTargetPosition(clientID, h['armJoints'][4], 0, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res, True)
                 # time.sleep(1.5)
-                arm = True
-                armCounter = 0
-                while arm:
+                for i in range(30):
                     vrep.simxSynchronousTrigger(clientID)
                     vrep.simxGetPingTime(clientID)
 
-                    armCounter += 1
-                    if armCounter == 50:
-                        arm = False
+                # arm = True
+                # armCounter = 0
+                # while arm:
+                #     vrep.simxSynchronousTrigger(clientID)
+                #     vrep.simxGetPingTime(clientID)
+                #
+                #     armCounter += 1
+                #     if armCounter == 50:
+                #         arm = False
                 # We have to know that we do not hold object anymore
                 holdObject = False
                 objectID = objectID + 1
                 if objectID > 4:
                     objectID = 0
-                    tabID = objectsTablesID[1]
+                    tabID = tabID + 1
 
-                # If the robot is supposed to grasp object of table 2,
-                # comment the if statement below
-                if tabID == objectsTablesID[1]:
+                # If the robot is supposed to grasp object of table 2
+                if tabID == 2:
                     print('Grasping Finished')
                     p = False
 
