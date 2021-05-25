@@ -44,7 +44,7 @@ from trans_rot_matrix import trans_rot_matrix
 from matplotlib.path import Path
 import matplotlib.pyplot as plt
 
-from Functions import Rotate, stopWheels, rotate2
+from Functions import rotate, stopWheels, rotate2
 
 # Test the python implementation of a youbot
 # Initiate the connection to the simulator.
@@ -172,7 +172,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'imageAnalysis'
+start = 'grasping'
 
 if start == 'navigation':
     navigationFinished = False
@@ -182,6 +182,7 @@ if start == 'navigation':
     fsm = 'searchAlgo'
     counterSearchAlgo = 0
     print('Switching to state: ', fsm)
+    modelTableFlag = True
 
 elif start == 'findtarget':
     navigationFinished = True
@@ -196,15 +197,16 @@ elif start == 'findtarget':
     # Initialise the state machine.
     fsm = 'searchTables'
     print('Switching to state: ', fsm)
+    modelTableFlag = True
 
-elif start == 'ModelTable':
+elif start == 'modelTable':
     navigationFinished = True
     discoverTableCounter = 3
     statesMap = np.loadtxt("saveStatesMap.txt", dtype='i', delimiter=',')
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     objectsTablesID = np.loadtxt('saveobjectsTablesID.txt', dtype='i', delimiter=',')
     targetID = np.loadtxt("savetargetID.txt", dtype='i', delimiter=',')
-    tablesRealCenter = np.loadtxt("savetablesRealCenter.txt", dtype='i', delimiter=',')
+    tablesRealCenter = np.loadtxt("savetablesRealCenter.txt", dtype='f', delimiter=',')
     tablesCenters = np.loadtxt("savetablesCenters.txt", dtype='i', delimiter=',')
     table1Neighbours = np.loadtxt("savetable1Neighbours.txt", dtype='i', delimiter=',')
     table2Neighbours = np.loadtxt("savetable2Neighbours.txt", dtype='i', delimiter=',')
@@ -218,6 +220,7 @@ elif start == 'ModelTable':
     tabID = objectsTablesID[0]
     neighbour = 0
     counterSearchAlgo = 0
+    modelTableFlag = True
 
     # turn off the hokuyo captor
     res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
@@ -247,6 +250,7 @@ elif start == 'imageAnalysis':
     tabID = objectsTablesID[0]
     neighbour = 4
     counterSearchAlgo = 0
+    modelTableFlag = True
 
     # turn off the hokuyo captor
     res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
@@ -267,12 +271,12 @@ elif start == 'grasping':
     destObjects = np.loadtxt("savedestObjects.txt", dtype='f', delimiter=',')
     centerTarget = np.loadtxt("savecenterTarget.txt", dtype='f', delimiter=',')
 
-    tableID = 0
-    objectID = 0
+    objectID = 3
     discoverTableCounter = 3
     tabID = targetID
     neighbour = 4
     counterSearchAlgo = 0
+    modelTableFlag = False
 
     # turn off the hokuyo captor
     res = vrep.simxSetIntegerSignal(clientID, 'handle_xy_sensor', 0, vrep.simx_opmode_oneshot)
@@ -741,17 +745,19 @@ while p:
                 j = discoverTableCounter
                 results = astar.run([xRobot, yRobot], [tablesNeighbours[j, 0], tablesNeighbours[j, 1]])
 
-            elif tabID != targetID and neighbour < 5:
+            elif modelTableFlag and neighbour < 5:
+                print('nooo')
                 results = astar.run([xRobot, yRobot], [tabToModel[neighbour, 0], tabToModel[neighbour, 1]])
 
             elif neighbour < 4:
                 results = astar.run([xRobot, yRobot], [targetNeighbours[neighbour, 0], targetNeighbours[neighbour, 1]])
 
-            elif objectID < 6:
+            elif objectID < 5:
                 if holdObject == False:
+                    print('if')
                     results = astar.run([xRobot, yRobot], [posNearObject[0, 0], posNearObject[0, 1]])
                 else:
-                    if tableID == 0:
+                    if tabID == 0:
                         results = astar.run([xRobot, yRobot], [destObjects[objectID, 0], destObjects[objectID, 1]])
                     else:
                         results = astar.run([xRobot, yRobot], [destObjects[objectID+5, 0], destObjects[objectID+5, 1]])
@@ -884,7 +890,8 @@ while p:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                        elif tabID != targetID and neighbour < 5:
+                        elif modelTableFlag and neighbour < 5:
+                            modelTableFlag = not modelTableFlag
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
@@ -893,8 +900,17 @@ while p:
                             print('Switching to state: ', fsm)
 
                         elif objectID < 5:
-                            fsm = 'rotateAndSlide'
-                            print('Switching to state: ', fsm)
+                            fsm = 'forward'
+                            iPath = iPath - 1
+                            forwBackVel = - 1
+                            a = path[iPath, 0] - youbotPos[0]
+                            b = youbotPos[1] - path[iPath, 1]
+                            distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
+                            if navigationFinished and abs(distance) < .1:
+                                forwBackVel = 0  # Stop the robot.
+                                iPath = iPath + 1
+                                fsm = 'rotateAndSlide'
+                                print('Switching to state: ', fsm)
 
                     # elif iPath == len(path):
                     #     fsm = 'forward'
@@ -903,7 +919,7 @@ while p:
                     #     a = path[iPath, 0] - youbotPos[0]
                     #     b = youbotPos[1] - path[iPath, 1]
                     #     distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
-                    #     if navigationFinished and abs(distance) < .1:
+                    #     if navigationFinished and abs(distance) < .05:
                     #         forwBackVel = 0  # Stop the robot.
                     #         iPath = iPath + 1
                     #         fsm = 'rotateAndSlide'
@@ -997,9 +1013,9 @@ while p:
             if k < 3:
                 aa = rgbdPos[0] - tablesRealCenter[k, 0]
                 bb = tablesRealCenter[k, 1] - rgbdPos[1]
-                beta = - (math.atan2(aa, bb) - math.pi/2)
-                if bb > 0:
-                    beta = beta + math.pi
+                beta = math.atan2(aa, bb) + math.pi/2
+                # if bb > 0:
+                #     beta = beta + math.pi
             else:
                 aa = rgbdPos[0] - tablesRealCenter[tabID, 0]
                 bb = tablesRealCenter[tabID, 1] - rgbdPos[1]
@@ -1206,6 +1222,7 @@ while p:
 
         # Use the depth camera to take picture of the tables in order to fill in ptsTableX, ptsObjectsX and ptsTarget
         elif fsm == 'modelTable':
+            modelTableFlag = True
 
             # get rgb camera position
             [res, rgbdPos] = vrep.simxGetObjectPosition(clientID, h['rgbdCasing'], -1, vrep.simx_opmode_oneshot_wait)
@@ -1257,6 +1274,7 @@ while p:
             # print('primaInter', ptsTableInter)
             ptsTable = np.vstack([ptsTableInter[0, :], ptsTableInter[1, :]])
 
+            print('tabID', tabID)
             # When not dealing with target table, focus also on objects
             if tabID != targetID:
                 # To know object points, keep the one with high above 0.187m
@@ -1264,7 +1282,7 @@ while p:
                 ptsObject = pts[0:3, pts[2, :] > 0.187]
 
                 # Reduce angle view to focus more on objects
-                res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/7, vrep.simx_opmode_oneshot_wait)
+                res = vrep.simxSetFloatSignal(clientID, 'rgbd_sensor_scan_angle', math.pi/10, vrep.simx_opmode_oneshot_wait)
                 vrchk(vrep, res)
 
                 # take a depth picture
@@ -1302,20 +1320,12 @@ while p:
                 # ptsTable1 = np.unique(ptsTable1, return_index=True, return_inverse=True, axis=0)
                 # ptsTable1 = ptsTable1[0]
 
-                # print('ptsTable1', ptsTable1)
-                # print('ptsTable', ptsTable)
-                # print('ptsObject', ptsObject)
-                # print('ptsObject_focus', ptsObject_focus)
-                # print('tempMatrix', tempMatrix)
-
                 if type(ptsObjects1) == list:
-                    print('if')
                     tempMatrix1 = np.round(250*ptsObject)/250
                     tempMatrix2 = np.round(250*ptsObject_focus)/250
                     ptsObjects1 = np.hstack([ptsObject, tempMatrix1, tempMatrix2])
                     # c = c.tolist()
                 else:
-                    print('else')
                     tempMatrix1 = np.round(250*ptsObjects1)/250
                     tempMatrix2 = np.round(250*ptsObject_focus)/250
                     ptsObjects1 = np.hstack([ptsObjects1, tempMatrix1, tempMatrix2])
@@ -1364,6 +1374,7 @@ while p:
                 neighbour = neighbour + 1
                 if neighbour > 4:
                     tabID = targetID
+                    modelTableFlag = False
                     neighbour = 0
 
                 fsm = 'astar'
@@ -1410,63 +1421,71 @@ while p:
                     print('Switching to state: ', fsm)
 
                 else:
+                    modelTableFlag = False
                     fsm = 'astar'
                     print('Switching to state: ', fsm)
 
         # Analyze the points taken through the depth pictures to infer objects positions and table center and differentiate table 1 and 2
         elif fsm == 'imageAnalysis':
+            modelTableFlag = False
 
             tab1ID = objectsTablesID[0]
-            xMean = np.mean(ptsTable1[0, :])
-            yMean = np.mean(ptsTable1[1, :])
+            # xMean = np.mean(ptsTable1[0, :])
+            # yMean = np.mean(ptsTable1[1, :])
 
-            # Remove parasite points for table (points placed to far from it)
-            a = np.sqrt((ptsTable1[0, :] - xMean)**2 + (ptsTable1[1, :] - yMean)**2)
-            ptsTable1 = ptsTable1[:, a < 0.6]
-
-            xCenter = (np.max(ptsTable1[0, :]) + np.min(ptsTable1[0, :]))/2
-            yCenter = (np.max(ptsTable1[1, :]) + np.min(ptsTable1[1, :]))/2
-            preciseCenter1 = np.zeros((1, 2))
-            preciseCenter1[0, :] = [xCenter, yCenter]
-            tablesRealCenter[tab1ID, :] = preciseCenter1
+            # # Remove parasite points for table (points placed to far from it)
+            # a = np.sqrt((ptsTable1[0, :] - xMean)**2 + (ptsTable1[1, :] - yMean)**2)
+            # ptsTable1 = ptsTable1[:, a < 0.6]
+            #
+            # xCenter = (np.max(ptsTable1[0, :]) + np.min(ptsTable1[0, :]))/2
+            # yCenter = (np.max(ptsTable1[1, :]) + np.min(ptsTable1[1, :]))/2
+            # preciseCenter1 = np.zeros((1, 2))
+            # preciseCenter1[0, :] = [xCenter, yCenter]
+            # tablesRealCenter[tab1ID, :] = preciseCenter1
 
             # Remove parasite points for objects (points placed to far from it)
+            xCenter = tablesRealCenter[tab1ID, 0]
+            yCenter = tablesRealCenter[tab1ID, 1]
             a = np.sqrt((ptsObjects1[0, :] - xCenter)**2 + (ptsObjects1[1, :] - yCenter)**2)
             ptsObjects1 = ptsObjects1[:, a < 0.8]
 
-            # Considering the second table
+            # # Considering the second table
             tab2ID = objectsTablesID[1]
-            xMean = np.mean(ptsTable2[0, :])
-            yMean = np.mean(ptsTable2[1, :])
-
-            # Remove parasite points for table (points placed to far from it)
-            a = np.sqrt((ptsTable2[0, :] - xMean)**2 + (ptsTable2[1, :] - yMean)**2)
-            ptsTable2 = ptsTable2[:, a < 0.6]
-
-            xCenter = (np.max(ptsTable2[0, :]) + np.min(ptsTable2[0, :]))/2
-            yCenter = (np.max(ptsTable2[1, :]) + np.min(ptsTable2[1, :]))/2
-            preciseCenter2 = np.zeros((1, 2))
-            preciseCenter2[0, :] = [xCenter, yCenter]
-            tablesRealCenter[tab1ID, :] = preciseCenter2
+            # xMean = np.mean(ptsTable2[0, :])
+            # yMean = np.mean(ptsTable2[1, :])
+            #
+            # # Remove parasite points for table (points placed to far from it)
+            # a = np.sqrt((ptsTable2[0, :] - xMean)**2 + (ptsTable2[1, :] - yMean)**2)
+            # ptsTable2 = ptsTable2[:, a < 0.6]
+            #
+            # xCenter = (np.max(ptsTable2[0, :]) + np.min(ptsTable2[0, :]))/2
+            # yCenter = (np.max(ptsTable2[1, :]) + np.min(ptsTable2[1, :]))/2
+            # preciseCenter2 = np.zeros((1, 2))
+            # preciseCenter2[0, :] = [xCenter, yCenter]
+            # tablesRealCenter[tab1ID, :] = preciseCenter2
 
             # Remove parasite points for objects (points placed to far from it)
+            xCenter = tablesRealCenter[tab2ID, 0]
+            yCenter = tablesRealCenter[tab2ID, 1]
             a = np.sqrt((ptsObjects2[0, :] - xCenter)**2 + (ptsObjects2[1, :] - yCenter)**2)
             ptsObjects2 = ptsObjects2[:, a < 0.8]
 
             # Through the ptsTarget points, we can have a more accurate idea of the target table points and center
             # point. So update them
-            xMean = np.mean(ptsTarget[0, :])
-            yMean = np.mean(ptsTarget[1, :])
+            # xMean = np.mean(ptsTarget[0, :])
+            # yMean = np.mean(ptsTarget[1, :])
 
             # Remove parasite points for table (points situated to far from it)
-            a = np.sqrt((ptsTarget[0, :] - xMean)**2 + (ptsTarget[1, :] - yMean)**2)
+            xCenter = tablesRealCenter[targetID, 0]
+            yCenter = tablesRealCenter[targetID, 1]
+            a = np.sqrt((ptsTarget[0, :] - xCenter)**2 + (ptsTarget[1, :] - yCenter)**2)
             ptsTarget = ptsTarget[:, a < 0.6]
 
-            xCenter = (np.max(ptsTarget[0, :]) + np.min(ptsTarget[0, :]))/2
-            yCenter = (np.max(ptsTarget[1, :]) + np.min(ptsTarget[1, :]))/2
-            preciseCenter = np.zeros((1, 2))
-            preciseCenter[0, :] = [xCenter, yCenter]
-            tablesRealCenter[targetID, :] = [xCenter, yCenter]
+            # xCenter = (np.max(ptsTarget[0, :]) + np.min(ptsTarget[0, :]))/2
+            # yCenter = (np.max(ptsTarget[1, :]) + np.min(ptsTarget[1, :]))/2
+            # preciseCenter = np.zeros((1, 2))
+            # preciseCenter[0, :] = [xCenter, yCenter]
+            # tablesRealCenter[targetID, :] = [xCenter, yCenter]
 
             # ADD THIS
             from sklearn.cluster import KMeans
@@ -1474,17 +1493,17 @@ while p:
             # Regrouping the points to find the centers of the objects on the tables.
             distToClusterCenters1 = math.inf
 
-            kmeans = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
-            kmeans.fit(ptsObjects1.transpose())
-            centerObject1 = kmeans.cluster_centers_
-            idObject1 = kmeans.labels_
+            kmeans1 = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
+            kmeans1.fit(ptsObjects1.transpose())
+            centerObject1 = kmeans1.cluster_centers_
+            idObject1 = kmeans1.labels_
 
             distToClusterCenters2 = math.inf
 
-            kmeans = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
-            kmeans.fit(ptsObjects2.transpose())
-            centerObject2 = kmeans.cluster_centers_
-            idObject2 = kmeans.labels_
+            kmeans2 = KMeans(init="random", n_clusters=5, n_init=50, max_iter=300, random_state=None)
+            kmeans2.fit(ptsObjects2.transpose())
+            centerObject2 = kmeans2.cluster_centers_
+            idObject2 = kmeans2.labels_
 
             # Check the distances between the mean objects center points and the objects center points
             # The table for which the distance is the higher has many space between objects. So it is table 1.
@@ -1519,6 +1538,7 @@ while p:
                 temp = objectsTablesID[0]
                 objectsTablesID[0] = objectsTablesID[1]
                 objectsTablesID[1] = temp
+
 
             # Plot table 1
             plt.close()
@@ -1577,7 +1597,7 @@ while p:
 
             # fprintf('table 1 is (%f,%f)', tablesCentersReal(objectsTablesID(1),1),tablesCentersReal(objectsTablesID(1),2))
 
-            tableID = 0
+            tabID = objectsTablesID[0]
             objectID = 0
             fsm = 'computedestObjects'
             print('Switching to state: ', fsm)
@@ -1591,18 +1611,23 @@ while p:
             destObjects = np.zeros((5, 2))
             # divide 360° in 5 for milestone 2a
             angles = np.linspace(0, 2*math.pi, num=6)
+            print('angles', angles)
             centerTarget = tablesRealCenter[targetID, :]
 
             for k in range(5):
                 j = 0.5
-                destObjects[k, :] = centerTarget + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                # destObjects[k, :] = centerTarget + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                destObjects[k, 0] = centerTarget[0] + (math.cos(angles[k]) * j)
+                destObjects[k, 1] = centerTarget[1] + (math.sin(angles[k]) * j)
                 destObjects[k, 0] = round((destObjects[k, 0] + 7.5)/resolution) + 1
                 destObjects[k, 1] = round((destObjects[k, 1] + 7.5)/resolution) + 1
 
                 # Verify that the cell is a free cell
                 while statesMap[int(destObjects[k, 0]), int(destObjects[k, 1])] != 0:
                     j = j + 0.1
-                    destObjects[k, :] = centerTarget + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                    # destObjects[k, :] = centerTarget + [math.cos(angles[k]) * j, math.sin(angles[k]) * j]
+                    destObjects[k, 0] = centerTarget[0] + (math.cos(angles[k]) * j)
+                    destObjects[k, 1] = centerTarget[1] + (math.sin(angles[k]) * j)
                     destObjects[k, 0] = round((destObjects[k, 0] + 7.5)/resolution) + 1
                     destObjects[k, 1] = round((destObjects[k, 1] + 7.5)/resolution) + 1
 
@@ -1621,7 +1646,7 @@ while p:
         # For each object to grasp, find nearest cell to send the robot to
         elif fsm == 'calculateObjectGoal':
 
-            if tableID == 0:
+            if tabID == targetID:
                 centerObject = centerObject1
                 tableCenter = [tablesRealCenter[objectsTablesID[0], 0], tablesRealCenter[objectsTablesID[0], 1]]
             else:
@@ -1630,17 +1655,18 @@ while p:
 
             posObject = [centerObject[objectID, 0], centerObject[objectID, 1]]
 
+            print('objectID', objectID)
             a = posObject[1] - tableCenter[1]
             b = posObject[0] - tableCenter[0]
             angle = math.atan2(a, b)
 
-            if posObject[0] < tableCenter[0]:
-                angle = angle + math.pi
+            # if posObject[0] < tableCenter[0]:
+            #     angle = angle + math.pi
 
             j = 0.5
             print('tablecenter', tableCenter)
+            print('posObject', posObject)
             posNearObject = np.zeros((1, 2))
-            print('posNearObject', posNearObject)
             posNearObject[0, 0] = tableCenter[0] + (math.cos(angle) * j)
             posNearObject[0, 1] = tableCenter[1] + (math.sin(angle) * j)
             print('posNearObject', posNearObject)
@@ -1654,6 +1680,8 @@ while p:
                 posNearObject[0, 1] = tableCenter[1] + (math.sin(angle) * j)
                 posNearObject[0, 0] = round((posNearObject[0, 0] + 7.5)/resolution) + 1
                 posNearObject[0, 1] = round((posNearObject[0, 1] + 7.5)/resolution) + 1
+
+            print('posNearObject', posNearObject)
 
             fsm = 'astar'
             print('Switching to state: ', fsm)
@@ -1674,20 +1702,20 @@ while p:
                 else:
                     centerToReach = tableCenter
 
-                a = centerToReach[0] - youbotPos[0]
+                a = youbotPos[0] - centerToReach[0]
                 b = centerToReach[1] - youbotPos[1]
-                rotationAngle = math.atan2(a, b)
+                rotationAngle = math.atan2(a, b) + math.pi/2
 
-                rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
-
-                if rotateRightVel > math.pi:
-                    rotateRightVel = rotateRightVel - math.pi*2
-
-                if rotateRightVel < - math.pi:
-                    rotateRightVel = rotateRightVel + math.pi*2
-
-                if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
-                    rotateRightVel = 0
+                # rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
+                #
+                # if rotateRightVel > math.pi:
+                #     rotateRightVel = rotateRightVel - math.pi*2
+                #
+                # if rotateRightVel < - math.pi:
+                #     rotateRightVel = rotateRightVel + math.pi*2
+                #
+                # if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
+                #     rotateRightVel = 0
 
                 # # Find the angle to ensure table on the left
                 # if youbotPos[1] >= centerToReach[1]:
@@ -1697,7 +1725,7 @@ while p:
 
                 # Launch the rotation
                 rotateRightVel = 1.7
-                rotate2(rotateRightVel, rotationAngle, h, clientID, vrep)
+                rotate(rotationAngle, h, clientID, vrep)
                 rotateRightVel = 0
 
                 # Proceed to the computation to know how far we are from
@@ -2052,10 +2080,11 @@ while p:
                 objectID = objectID + 1
                 if objectID > 4:
                     objectID = 0
-                    tableID = tableID + 1
+                    tabID = objectsTablesID[1]
 
-                # If the robot is supposed to grasp object of table 2
-                if tableID == 2:
+                # If the robot is supposed to grasp object of table 2,
+                # comment the if statement below
+                if tabID == objectsTablesID[1]:
                     print('Grasping Finished')
                     p = False
 
