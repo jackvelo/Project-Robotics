@@ -271,7 +271,7 @@ elif start == 'grasping':
     destObjects = np.loadtxt("savedestObjects.txt", dtype='f', delimiter=',')
     centerTarget = np.loadtxt("savecenterTarget.txt", dtype='f', delimiter=',')
 
-    objectID = 1
+    objectID = 0
     discoverTableCounter = 3
     tabID = targetID
     neighbour = 4
@@ -825,8 +825,8 @@ while p:
                 fsm = 'searchAlgo'
                 print('Switching to state: ', fsm)
 
-            if iPath >= len(path)-1:
-                iPath = len(path)-1
+            # if iPath >= len(path)-1:
+            #     iPath = len(path)-1
 
             a = path[iPath, 0] - youbotPos[0]
             b = youbotPos[1] - path[iPath, 1]
@@ -847,7 +847,6 @@ while p:
                 rotateRightVel = 0
                 fsm = 'forward'
                 print('Switching to state: ', fsm)
-
 
             # Rotate(vrep, clientID, h, rotateRightVel, path[iPath, 0], path[iPath, 1], youbotPos[0], youbotPos[1])
 
@@ -900,18 +899,20 @@ while p:
                             fsm = 'rotateToCenter'
                             print('Switching to state: ', fsm)
 
-                        elif objectID < 5:
-                            fsm = 'forward'
+                        elif objectID < 5 and len(path)-1 < iPath:
                             iPath = iPath - 1
-                            forwBackVel = - 0.3
-                            a = path[iPath, 0] - youbotPos[0]
-                            b = youbotPos[1] - path[iPath, 1]
-                            distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
-                            if navigationFinished and abs(distance) < .5:
-                                forwBackVel = 0  # Stop the robot.
-                                iPath = iPath + 1
-                                fsm = 'rotateAndSlide'
-                                print('Switching to state: ', fsm)
+                            fsm = 'preciseForward'
+                            print('Switching to state: ', fsm)
+                            # iPath = iPath - 1
+                            # forwBackVel = - 1
+                            # a = path[iPath, 0] - youbotPos[0]
+                            # b = youbotPos[1] - path[iPath, 1]
+                            # distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
+                            # if navigationFinished and abs(distance) < .1:
+                            #     forwBackVel = 0  # Stop the robot.
+                            #     iPath = iPath + 1
+                            #     fsm = 'rotateAndSlide'
+                            #     print('Switching to state: ', fsm)
 
                     # elif iPath == len(path):
                     #     fsm = 'forward'
@@ -933,6 +934,21 @@ while p:
                     #         print('Switching to state: ', fsm)
 
                 prevPosition = [youbotPos[0], youbotPos[1]]
+
+        elif fsm == 'preciseForward':
+                # Set a costant velocity
+                forwBackVel = - 0.1
+
+                # Stop when the robot is close to the next element of the path.
+                # The tolerance has been determined by experiments
+                a = path[iPath, 0] - youbotPos[0]
+                b = youbotPos[1] - path[iPath, 1]
+                distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
+                if abs(distance) < .03:
+                    forwBackVel = 0  # Stop the robot.
+                    iPath = iPath + 1
+                    fsm = 'rotateAndSlide'
+                    print('Switching to state: ', fsm)
 
         elif fsm == 'searchTables':
 
@@ -1661,6 +1677,9 @@ while p:
             b = posObject[0] - tableCenter[0]
             angle = math.atan2(a, b)
 
+            # if posObject[0] < tableCenter[0]:
+            #     angle = angle + math.pi
+
             j = 0.5
             print('tablecenter', tableCenter)
             print('posObject', posObject)
@@ -1697,12 +1716,27 @@ while p:
                 # if holding and object and have to slide closer, we know that the table of interest is the target
                 if holdObject:
                     centerToReach = centerTarget
+                    print('centerTarget', centerTarget)
+                    a = youbotPos[0] - centerToReach[0]
+                    b = centerToReach[1] - youbotPos[1]
+                    rotationAngle = math.atan2(a, b) + 22*math.pi/32
+                    print('a', a)
+                    print('b', b)
+                    print('math.atan2', math.atan2(a, b))
                 else:
                     centerToReach = tableCenter
+                    a = youbotPos[0] - centerToReach[0]
+                    b = centerToReach[1] - youbotPos[1]
+                    rotationAngle = math.atan2(a, b) + 20*math.pi/32
+                    print('a', a)
+                    print('b', b)
+                    print('math.atan2', math.atan2(a, b))
 
-                a = youbotPos[0] - centerToReach[0]
-                b = centerToReach[1] - youbotPos[1]
-                rotationAngle = math.atan2(a, b) + math.pi/2
+                print('rotationAngle', rotationAngle)
+                #
+                # a = youbotPos[0] - centerToReach[0]
+                # b = centerToReach[1] - youbotPos[1]
+                # rotationAngle = math.atan2(a, b) + math.pi/2
 
                 # rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
                 #
@@ -1722,9 +1756,13 @@ while p:
                 #     angle = math.pi - angle - math.pi/2
 
                 # Launch the rotation
-                rotateRightVel = 1.7
+                rotateRightVel = 1
                 rotate(rotationAngle, h, clientID, vrep)
                 rotateRightVel = 0
+
+                for i in range(10):
+                    vrep.simxSynchronousTrigger(clientID)
+                    vrep.simxGetPingTime(clientID)
 
                 # Proceed to the computation to know how far we are from
                 # the table and which distance has to be travelled
@@ -1739,12 +1777,12 @@ while p:
                 # print('closestPoint', closestPoint)
 
                 totDist = np.sqrt((startingPoint[0] - closestPoint[0])**2 + (startingPoint[1] - closestPoint[1])**2)
-                print('totDist', totDist)
+                # print('totDist', totDist)
 
             travelledDist = 0
 
             # Make the robot slide until it has covered the distance we want
-            while travelledDist < totDist - .04:
+            while travelledDist < totDist - .08:
                 vrep.simxSynchronousTrigger(clientID)
                 vrep.simxGetPingTime(clientID)
                 if slideCloser:
@@ -1755,7 +1793,7 @@ while p:
                 [res, youbotPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
                 vrchk(vrep, res, True)
                 travelledDist = np.sqrt((startingPoint[0] - youbotPos[0])**2 + (startingPoint[1] - youbotPos[1])**2)
-                print('travelledDist', travelledDist)
+                # print('travelledDist', travelledDist)
 
             # Stops wheels if position reached
             res = vrep.simxSetJointTargetVelocity(clientID, h['wheelJoints'][0], 0, vrep.simx_opmode_oneshot)
