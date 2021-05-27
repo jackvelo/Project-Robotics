@@ -13,7 +13,6 @@ import sim as vrep
 
 import math
 import numpy as np
-import numpy
 import pickle
 import sys
 import time
@@ -44,7 +43,90 @@ from trans_rot_matrix import trans_rot_matrix
 from matplotlib.path import Path
 import matplotlib.pyplot as plt
 
+from Prova_obs import example_filter
 from Functions import rotate, stopWheels, rotate2
+
+from pfilter import (
+    ParticleFilter,
+    gaussian_noise,
+    cauchy_noise,
+    squared_error,
+    independent_sample,
+)
+from scipy.stats import norm, gamma, uniform
+
+def observation(x):
+    # if type(x) == list:
+    #     tmp = np.zeros((1, 2))
+    #     tmp[0][0] = x[0]
+    #     tmp[0][1] = x[1]
+    #     x = tmp
+    # xC = [0.0, 7.300000190734863, -7.300000190734863]
+    # yC = [-7.300000190734863, 0.0, 5.0]
+    distance = np.zeros((x.shape[0], 3))
+
+    # else:
+    for i, particle in enumerate(x):
+
+        xdist1 = abs(particle[0] - xC[0])
+        xdist2 = abs(particle[0] - xC[1])
+        xdist3 = abs(particle[0] - xC[2])
+        ydist1 = abs(particle[1] - yC[0])
+        ydist2 = abs(particle[1] - yC[1])
+        ydist3 = abs(particle[1] - yC[2])
+
+        dist1 = math.sqrt(xdist1**2+ydist1**2)
+        dist2 = math.sqrt(xdist2**2+ydist2**2)
+        dist3 = math.sqrt(xdist3**2+ydist3**2)
+        distance[i] = np.array([dist1, dist2, dist3])
+    return distance
+
+
+# very simple linear dynamics: x += dx
+def velocity(x):
+    forwbackvel = -1
+    timestep = .05
+    xp = np.array(x)
+    xp[0][0] += forwbackvel*math.sin(alpha)*timestep
+    xp[0][1] += -forwbackvel*math.cos(alpha)*timestep
+    return xp
+
+
+def example_filter(x):
+    map_size = 7.5
+
+    # names (this is just for reference for the moment!)
+    columns = ["x", "y"]
+
+    # prior sampling function for each variable
+    # (assumes x and y are coordinates in the range 0-map_size)
+    prior_fn = independent_sample(
+        [
+         # norm(loc=0, scale=7.5).rvs,
+         # norm(loc=0, scale=7.5).rvs,
+         norm(loc=x[0][0], scale=0.01).rvs,
+         norm(loc=x[0][1], scale=0.01).rvs,
+        ]
+    )
+
+    # create the filter
+    pf = ParticleFilter(
+        prior_fn=prior_fn,
+        observe_fn=observation,
+        n_particles=100,
+        dynamics_fn=velocity,
+        n_eff_threshold=0.9,
+        noise_fn=lambda x: cauchy_noise(x, sigmas=[0.001, 0.001]),
+        weight_fn=lambda x, y: squared_error(x, y, sigma=1),
+        resample_proportion=0.5,
+        column_names=columns,
+    )
+
+    obs = observation(x)
+    pf.update(obs)
+
+    youbot_position = pf.mean_state
+    return youbot_position
 
 # Test the python implementation of a youbot
 # Initiate the connection to the simulator.
@@ -112,7 +194,24 @@ for i in range(int(1./timestep)):
 beacons_world_pos = np.zeros((len(beacons_handle), 3))
 for i, beacon in enumerate(beacons_handle):
     res, beacons_world_pos[i] = vrep.simxGetObjectPosition(clientID, beacon, -1,
-                                                           vrep.simx_opmode_buffer)
+                                                           vrep.simx_opmode_oneshot_wait)
+
+xC1 = beacons_world_pos[0, 0]
+yC1 = beacons_world_pos[0, 1]
+xC2 = beacons_world_pos[1, 0]
+yC2 = beacons_world_pos[1, 1]
+xC3 = beacons_world_pos[2, 0]
+yC3 = beacons_world_pos[2, 1]
+
+xC = [xC1, xC2, xC3]
+yC = [yC1, yC2, yC3]
+
+R12 = math.sqrt((xC1-xC2)**2+(yC1-yC2)**2)
+R23 = math.sqrt((xC2-xC3)**2+(yC2-yC3)**2)
+R31 = math.sqrt((xC1-xC3)**2+(yC1-yC3)**2)
+
+R = [R12, R23, R31]
+
 
 # Parameters for controlling the youBot's wheels: at each iteration,
 # those values will be set for the wheels.
@@ -172,7 +271,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'findtarget'
+start = 'navigation'
 
 if start == 'navigation':
     navigationFinished = False
@@ -236,7 +335,7 @@ elif start == 'imageAnalysis':
     occupancyGridAstarList = np.loadtxt('saveoccupancyGridAstarList.txt', dtype='i', delimiter=',')
     objectsTablesID = np.loadtxt('saveobjectsTablesID.txt', dtype='i', delimiter=',')
     targetID = np.loadtxt("savetargetID.txt", dtype='i', delimiter=',')
-    tablesRealCenter = np.loadtxt("savetablesRealCenter.txt", dtype='f', delimiter=',')
+    tablesRealCenter = np.loadtxt("savetablesRealCenter.txt", dtype='i', delimiter=',')
     tablesCenters = np.loadtxt("savetablesCenters.txt", dtype='i', delimiter=',')
     table1Neighbours = np.loadtxt("savetable1Neighbours.txt", dtype='i', delimiter=',')
     table2Neighbours = np.loadtxt("savetable2Neighbours.txt", dtype='i', delimiter=',')
@@ -292,6 +391,7 @@ yLength = sizeMap[1]
 
 # Get the initial position
 res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+youbotPosz = youbotPos[2]
 # Set the speed of the wheels to 0.
 h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
 
@@ -313,10 +413,73 @@ while p:
             sys.exit('Lost connection to remote API.')
 
         # Get the position and the orientation of the robot.
-        res, youbotPos = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
-        vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
         res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
         vrchk(vrep, res, True)
+
+        distance_beacon = youbot_beacon(vrep, clientID, beacons_handle, h, flag=False, noise=True)
+
+        r1 = distance_beacon[0]
+        r2 = distance_beacon[1]
+        r3 = distance_beacon[2]
+        r = [r1, r2, r3]
+
+        xGuess = np.zeros((1, 3))
+        yGuess = np.zeros((1, 3))
+
+        # intersection point of two circles
+        for mm in range(3):
+            if mm == 0:
+                i = 0
+                j = 1
+                k = 2
+            elif mm == 1:
+                i = 1
+                j = 2
+                k = 0
+            elif mm == 2:
+                i = 2
+                j = 0
+                k = 1
+
+            # https://math.stackexchange.com/questions/256100/how-can-i-find-the-points-at-which-two-circles-intersect
+
+            XA = 0.5*(xC[i] + xC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(xC[j] -xC[i]) - 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(yC[j] - yC[i])
+            YA = 0.5*(yC[i] + yC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(yC[j] -yC[i]) + 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(xC[j] - xC[i])
+            XB = 0.5*(xC[i] + xC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(xC[j] -xC[i]) + 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(yC[j] - yC[i])
+            YB = 0.5*(yC[i] + yC[j]) + (r[i]**2 - r[j]**2)/(2*R[i]**2)*(yC[j] -yC[i]) - 0.5*math.sqrt(abs(2*(r[i]**2 + r[j]**2)/(R[i]**2) - ((r[i]**2 - r[j]**2)**2)/(R[i]**4) - 1))*(xC[j] - xC[i])
+
+            distanceA = math.sqrt((XA-xC[k])**2+(YA-yC[k])**2)
+            distanceB = math.sqrt((XB-xC[k])**2+(YB-yC[k])**2)
+            tol = 0.1
+
+            if r[k] - tol < distanceA < r[k] + tol:
+                xGuess[0, mm] = XA
+                yGuess[0, mm] = YA
+            else:
+                xGuess[0, mm] = XB
+                yGuess[0, mm] = YB
+
+        youbotPos[0] = (xGuess[0, 0] + xGuess[0, 1] + xGuess[0, 2])/3
+        youbotPos[1] = (yGuess[0, 0] + yGuess[0, 1] + yGuess[0, 2])/3
+
+        print('youbotPos without filter', youbotPos)
+
+        # tmp = np.zeros((1, 2))
+        # tmp[0][0] = youbotPos[0]
+        # tmp[0][1] = youbotPos[1]
+        # x_filter = tmp
+        # alpha = youbotEuler[2]
+        # youbotPos = example_filter(x_filter)
+        # youbotPos = np.hstack((youbotPos, youbotPosz))
+        # print('youbotPos with filter', youbotPos)
+
+        # Milestone1A
+        # Get the position and the orientation of the robot.
+        res, youbotPosReal = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        vrchk(vrep, res, True)  # Check the return value from the previous V-REP call (res) and exit in case of error.
+        print('youbotPosReal', youbotPosReal)
+        # res, youbotEuler = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+        # vrchk(vrep, res, True)
 
         # Get the position of the robot in matrix form
         xRobot = round((youbotPos[0] + 7.5)/resolution)
@@ -390,6 +553,9 @@ while p:
 
             # assigning state 2 to the obstacles and state 3 to the points adjacent to the obstacles
             for i in range(len(xObstacle)):
+                if int(xObstacle[i]) >= xLength-1 or int(yObstacle[i]) >= yLength-1:
+                    break
+
                 statesMap[int(xObstacle[i]), int(yObstacle[i])] = 2
 
                 if 0 <= xObstacle[i] + 1 < len(xAxis) \
@@ -438,6 +604,9 @@ while p:
             # assigning state 4 to the points adjacent to the state 3 points
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
+                    if j >= xLength-1 or k >= yLength-1:
+                        break
+
                     if statesMapCopy[j, k] == 3:
                         if statesMapCopy[j - 1, k - 1] == 0:
                             statesMapCopy[j - 1, k - 1] = 4
@@ -466,6 +635,9 @@ while p:
             # assigning state 5 to the points adjacent to the state 4 points
             for j in range(len(xAxis)):
                 for k in range(len(yAxis)):
+                    if j >= xLength-1 or k >= yLength-1:
+                        break
+
                     if statesMapCopy[j, k] == 4:
                         if statesMapCopy[j - 1, k - 1] == 0:
                             statesMapCopy[j - 1, k - 1] = 5
@@ -650,10 +822,10 @@ while p:
                         statesMap[j, k] = 2
 
             # # Plot of the total map
-            # plt.close()
-            # plt.matshow(statesMap)
-            # plt.colorbar()
-            # plt.show()
+            plt.close()
+            plt.matshow(statesMap)
+            plt.colorbar()
+            plt.show()
 
             mat = np.matrix(statesMap)
             with open('saveStatesMap.txt', 'wb') as f:
@@ -757,9 +929,9 @@ while p:
                     print('if')
                     results = astar.run([xRobot, yRobot], [posNearObject[0, 0], posNearObject[0, 1]])
                 else:
-                    if tabID == objectsTablesID[0]:
+                    if tabID == 0:
                         results = astar.run([xRobot, yRobot], [destObjects[objectID, 0], destObjects[objectID, 1]])
-                    elif tabID == objectsTablesID[1]:
+                    else:
                         results = astar.run([xRobot, yRobot], [destObjects[objectID+5, 0], destObjects[objectID+5, 1]])
 
             # Create a copy of the statesMap to plot the path generated by Astar.
@@ -965,10 +1137,10 @@ while p:
                         binaryMap[jjj, kkk] = False
 
             nn = measure.label(binaryMap, background=None, return_num=False, connectivity=None)
-            # plt.close()
-            # plt.matshow(statesMap)
-            # plt.colorbar()
-            # plt.show()
+            plt.close()
+            plt.matshow(statesMap)
+            plt.colorbar()
+            plt.show()
             props = regionprops_table(nn, properties=('centroid',
                                                       'area',
                                                       'perimeter'))
@@ -1561,34 +1733,34 @@ while p:
 
 
             # Plot table 1
-            # plt.close()
-            # ax = plt.axes(projection='3d')
-            # ax.scatter3D(ptsTable1[0, :], ptsTable1[1, :])
-            # plt.title('Table 1')
-            # plt.show()
+            plt.close()
+            ax = plt.axes(projection='3d')
+            ax.scatter3D(ptsTable1[0, :], ptsTable1[1, :])
+            plt.title('Table 1')
+            plt.show()
 
             # Plot the clustering for table 1
-            # plt.close()
-            # ax = plt.axes(projection='3d')
-            # ax.scatter3D(ptsObjects1[0, :], ptsObjects1[1, :], ptsObjects1[2, :])
-            # ax.scatter3D(centerObject1[:, 0], centerObject1[:, 1], centerObject1[:, 2])
-            # plt.title('Objects points and cluster centers - Table 1')
-            # plt.show()
+            plt.close()
+            ax = plt.axes(projection='3d')
+            ax.scatter3D(ptsObjects1[0, :], ptsObjects1[1, :], ptsObjects1[2, :])
+            ax.scatter3D(centerObject1[:, 0], centerObject1[:, 1], centerObject1[:, 2])
+            plt.title('Objects points and cluster centers - Table 1')
+            plt.show()
 
             # Plot table 2
-            # plt.close()
-            # ax = plt.axes(projection='3d')
-            # ax.scatter3D(ptsTable2[0, :], ptsTable2[1, :])
-            # plt.title('Table 2')
-            # plt.show()
+            plt.close()
+            ax = plt.axes(projection='3d')
+            ax.scatter3D(ptsTable2[0, :], ptsTable2[1, :])
+            plt.title('Table 2')
+            plt.show()
 
             # Plot the clustering for table 2
-            # plt.close()
-            # ax = plt.axes(projection='3d')
-            # ax.scatter3D(ptsObjects2[0, :], ptsObjects2[1, :], ptsObjects2[2, :])
-            # ax.scatter3D(centerObject2[:, 0], centerObject2[:, 1], centerObject2[:, 2])
-            # plt.title('Objects points and cluster centers - Table 2')
-            # plt.show()
+            plt.close()
+            ax = plt.axes(projection='3d')
+            ax.scatter3D(ptsObjects2[0, :], ptsObjects2[1, :], ptsObjects2[2, :])
+            ax.scatter3D(centerObject2[:, 0], centerObject2[:, 1], centerObject2[:, 2])
+            plt.title('Objects points and cluster centers - Table 2')
+            plt.show()
 
             mat = np.matrix(idObject1)
             with open('saveidObject1.txt', 'wb') as f:
@@ -1600,10 +1772,10 @@ while p:
                 for line in mat:
                     np.savetxt(f, line, fmt='%.2f', delimiter=',')
 
-            # mat = np.matrix(centerObject1)
-            # with open('savecenterObject1.txt', 'wb') as f:
-            #     for line in mat:
-            #         np.savetxt(f, line, fmt='%.2f', delimiter=',')
+            mat = np.matrix(centerObject1)
+            with open('savecenterObject1.txt', 'wb') as f:
+                for line in mat:
+                    np.savetxt(f, line, fmt='%.2f', delimiter=',')
 
             mat = np.matrix(centerObject2)
             with open('savecenterObject2.txt', 'wb') as f:
@@ -1633,8 +1805,6 @@ while p:
             angles = np.linspace(0, 2*math.pi, num=6)
             print('angles', angles)
             centerTarget = tablesRealCenter[targetID, :]
-            print('centerTarget', centerTarget)
-            print('tablesRealCenter', tablesRealCenter)
 
             for k in range(5):
                 j = 0.5
@@ -1668,12 +1838,10 @@ while p:
         # For each object to grasp, find nearest cell to send the robot to
         elif fsm == 'calculateObjectGoal':
 
-            centerObject1 = np.loadtxt("savecenterObject1.txt", dtype='f', delimiter=',')
-
-            if tabID == objectsTablesID[0]:
+            if tabID == targetID:
                 centerObject = centerObject1
                 tableCenter = [tablesRealCenter[objectsTablesID[0], 0], tablesRealCenter[objectsTablesID[0], 1]]
-            elif tabID == objectsTablesID[1]:
+            else:
                 centerObject = centerObject2
                 tableCenter = [tablesRealCenter[objectsTablesID[1], 0], tablesRealCenter[objectsTablesID[1], 1]]
 
