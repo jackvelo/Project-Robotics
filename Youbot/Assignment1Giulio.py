@@ -172,7 +172,7 @@ i = 0
 #
 # --- Decide where to start -----------------------------------------------
 #
-start = 'findtarget'
+start = 'navigation'
 
 if start == 'navigation':
     navigationFinished = False
@@ -650,10 +650,10 @@ while p:
                         statesMap[j, k] = 2
 
             # # Plot of the total map
-            # plt.close()
-            # plt.matshow(statesMap)
-            # plt.colorbar()
-            # plt.show()
+            plt.close()
+            plt.matshow(statesMap)
+            plt.colorbar()
+            plt.show()
 
             mat = np.matrix(statesMap)
             with open('saveStatesMap.txt', 'wb') as f:
