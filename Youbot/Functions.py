@@ -56,12 +56,19 @@ def rotate(angleGoal, h, clientID, vrep):
 
         # Stop when the robot is at an angle close to rotationAngle
         if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
+            rotateRightVel = 0
             rotation = False
 
         # Update wheel velocities.
         forwBackVel = 0
         rightVel = 0
         h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+        vrep.simxSynchronousTrigger(clientID)
+        vrep.simxGetPingTime(clientID)
+
+    h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+
+    for i in range(20):
         vrep.simxSynchronousTrigger(clientID)
         vrep.simxGetPingTime(clientID)
 

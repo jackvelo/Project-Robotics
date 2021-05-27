@@ -944,11 +944,14 @@ while p:
                 a = path[iPath, 0] - youbotPos[0]
                 b = youbotPos[1] - path[iPath, 1]
                 distance = math.sqrt(a**2 + b**2)  # distance between robot and goal
-                if abs(distance) < .03:
+                if abs(distance) < .07:
                     forwBackVel = 0  # Stop the robot.
                     iPath = iPath + 1
                     fsm = 'rotateAndSlide'
                     print('Switching to state: ', fsm)
+                    for i in range(20):
+                        vrep.simxSynchronousTrigger(clientID)
+                        vrep.simxGetPingTime(clientID)
 
         elif fsm == 'searchTables':
 
@@ -1705,6 +1708,11 @@ while p:
 
         # If needed rotate the robot parallel to the table (table on its left) and slide closer or further
         elif fsm == 'rotateAndSlide':
+
+            for i in range(50):
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
+
             [res, youbotPos] = vrep.simxGetObjectPosition(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
             vrchk(vrep, res, True)
             # Get initial sliding position
@@ -1717,17 +1725,19 @@ while p:
                 if holdObject:
                     centerToReach = centerTarget
                     print('centerTarget', centerTarget)
-                    a = youbotPos[0] - centerToReach[0]
-                    b = centerToReach[1] - youbotPos[1]
-                    rotationAngle = math.atan2(a, b) + 22*math.pi/32
+                    a = - (youbotPos[0] - centerToReach[0])
+                    b = - (centerToReach[1] - youbotPos[1])
+                    rotationAngle = math.atan2(a, b) - math.pi/2
                     print('a', a)
                     print('b', b)
                     print('math.atan2', math.atan2(a, b))
                 else:
                     centerToReach = tableCenter
-                    a = youbotPos[0] - centerToReach[0]
-                    b = centerToReach[1] - youbotPos[1]
-                    rotationAngle = math.atan2(a, b) + 20*math.pi/32
+                    a = - (youbotPos[0] - centerToReach[0])
+                    b = - (centerToReach[1] - youbotPos[1])
+                    rotationAngle = math.atan2(a, b) - math.pi/2
+                    print('youbotPos', youbotPos)
+                    print('centerToReach', centerToReach)
                     print('a', a)
                     print('b', b)
                     print('math.atan2', math.atan2(a, b))
@@ -1756,13 +1766,49 @@ while p:
                 #     angle = math.pi - angle - math.pi/2
 
                 # Launch the rotation
-                rotateRightVel = 1
-                rotate(rotationAngle, h, clientID, vrep)
-                rotateRightVel = 0
+                # rotateRightVel = 1
+                # The orientation of youbot is obtained:
+                rotation = True
 
-                for i in range(10):
+                while rotation:
+                    [res, youbotEuler] = vrep.simxGetObjectOrientation(clientID, h['ref'], -1, vrep.simx_opmode_buffer)
+                    vrchk(vrep, res, True)
+
+                    rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
+
+                    if rotateRightVel > math.pi:
+                        rotateRightVel = rotateRightVel - math.pi*2
+
+                    if rotateRightVel < - math.pi:
+                        rotateRightVel = rotateRightVel + math.pi*2
+
+                    rotateRightVel = angdiff(youbotEuler[2], rotationAngle)
+
+                    if abs(angdiff(youbotEuler[2], rotationAngle)) < 0.05:
+                        rotateRightVel = 0
+                        rotation = False
+
+                    h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+                    forwBackVel = 0
+                    rightVel = 0
+
                     vrep.simxSynchronousTrigger(clientID)
                     vrep.simxGetPingTime(clientID)
+
+                # Update wheel velocities.
+                forwBackVel = 0
+                rightVel = 0
+                h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+                vrep.simxSynchronousTrigger(clientID)
+                vrep.simxGetPingTime(clientID)
+
+                # h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel)
+
+                # rotateRightVel = 0
+                #
+                # for i in range(20):
+                #     vrep.simxSynchronousTrigger(clientID)
+                #     vrep.simxGetPingTime(clientID)
 
                 # Proceed to the computation to know how far we are from
                 # the table and which distance has to be travelled
@@ -1782,7 +1828,7 @@ while p:
             travelledDist = 0
 
             # Make the robot slide until it has covered the distance we want
-            while travelledDist < totDist - .08:
+            while travelledDist < totDist - .06:
                 vrep.simxSynchronousTrigger(clientID)
                 vrep.simxGetPingTime(clientID)
                 if slideCloser:
@@ -1877,7 +1923,7 @@ while p:
 
             # Get points high enough (= remove table points)
             ptsObject = ptsObject[:, ptsObject[2, :] > 0.187]
-            print('ptsObj', ptsObject)
+            # print('ptsObj', ptsObject)
             # ptsObject = ptsObjectT.transpose()
 
             # Focus on points with X and Y distances to the centers smaller than 0.06 to focus on object
@@ -1893,7 +1939,7 @@ while p:
             ax.scatter3D(ptsObject[0, :], ptsObject[1, :], ptsObject[2, :])
             # ax.scatter3D(centerObject1[:, 0], centerObject1[:, 1], centerObject1[:, 2])
             plt.title('Objects points and cluster centers - Table 1')
-            plt.show()
+            # plt.show()
 
 
             fsm = 'armMotion'
@@ -1917,13 +1963,13 @@ while p:
                 gripPos = homtrans(trf, gripPos.transpose())
 
                 a = np.array(ptsObject[0, :] - gripPos[0])
-                print('a', a)
+                # print('a', a)
                 b = np.array(ptsObject[1, :] - gripPos[1])
-                print('b', b)
+                # print('b', b)
                 distToGrip = np.hypot(a, b)
-                print('distTogrip', distToGrip)
+                # print('distTogrip', distToGrip)
                 minDist = np.min(np.hypot(a, b))
-                print('mindist', minDist)
+                # print('mindist', minDist)
 
                 # Among the object points, find the one which is the closer to the gripper
                 indexNearestPoint = np.where(distToGrip == minDist)
@@ -1942,27 +1988,31 @@ while p:
                 #      ptsObject(indexNearestPoint,1), ptsObject(indexNearestPoint,2), '*' );
 
                 # Re-adjust center of the object to get a better manipulation with the gripper
-                kmeans = KMeans(init="random", n_clusters=1, n_init=50, max_iter=300, random_state=None)
-                kmeans.fit(ptsObject.transpose())
-                ptsObject = kmeans.cluster_centers_
-                print(ptsObject)
+                # kmeans = KMeans(init="random", n_clusters=1, n_init=50, max_iter=300, random_state=None)
+                # kmeans.fit(ptsObject.transpose())
+                # ptsObject = kmeans.cluster_centers_
+                # print(ptsObject)
                 # idObject1 = kmeans.labels_
 
                 # centerObject[objectID, 0] = ptsObject[0, 0]
                 # centerObject[objectID, 1] = ptsObject[0, 1]
                 # centerObject[objectID, 2] = ptsObject[0, 2]
 
-                centerObject[objectID, 0] = (centerObject[objectID, 0] + ptsObject[0, 0])/2
-                centerObject[objectID, 1] = (centerObject[objectID, 1] + ptsObject[0, 1])/2
+                # ptsObject(indexNearestPoint,1)
+
+                centerObject[objectID, 0] = (centerObject[objectID, 0] + ptsObject[0, indexNearestPoint])/2
+                centerObject[objectID, 1] = (centerObject[objectID, 1] + ptsObject[1, indexNearestPoint])/2
+
+                print('centerObject', centerObject)
 
                 # Find the angle of first joint, orientation to the object
-                a = gripPos[0] - centerObject[objectID, 0]
-                b = centerObject[objectID, 1] - gripPos[1]
-                angleJ1 = math.atan2(a, b) - youbotEuler[2] - math.pi
+                a = - gripPos[0] + centerObject[objectID, 0]
+                b = - centerObject[objectID, 1] + gripPos[1]
+                angleJ1 = math.atan2(a, b) - youbotEuler[2]
                 print('angleJ1', angleJ1)
 
-                if centerObject[objectID, 1] - gripPos[1] > 0:
-                    angleJ1 = angleJ1 + math.pi
+                # if centerObject[objectID, 1] - gripPos[1] > 0:
+                #     angleJ1 = angleJ1 + math.pi
 
             # Put the gripper in vertical position
 
@@ -2021,12 +2071,12 @@ while p:
                 # Find height difference between object and gripper
                 heightDiff = centerObject[objectID, 2] - gripPos[2]
                 # Find distance between gripper and object
-                DistGripObject = np.sqrt((centerObject[objectID, 0] - gripPos[0])**2 + (centerObject[objectID, 1] - gripPos[1])**2)
+                DistGripObject = np.sqrt((centerObject[objectID, 0] - gripPos[0])**2 + (centerObject[objectID, 1] - gripPos[1])**2) - 0.005
 
                 # System of equations to find angles to take
                 # phi2, phi3 = symbols('phi2 phi3')
-                print('DistGripObject', DistGripObject)
-                print('heightDiff', heightDiff)
+                # print('DistGripObject', DistGripObject)
+                # print('heightDiff', heightDiff)
 
                 def func(phi):
                     return [length2 * math.sin(phi[0]) + length3 * math.sin(phi[0] + phi[1]) + length4 - DistGripObject,
@@ -2034,7 +2084,7 @@ while p:
 
                 # # Restrict the search interval to get desired angles values
                 searchInterval1 = (-1.5707963705063, 1.308996796608)
-                searchInterval2 = (0, 2.2863812446594)
+                searchInterval2 = (0, 1.2863812446594)
                 # # #
                 x0 = searchInterval1[1]
                 y0 = searchInterval2[1]
