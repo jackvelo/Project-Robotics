@@ -113,7 +113,7 @@ def example_filter(x):
     pf = ParticleFilter(
         prior_fn=prior_fn,
         observe_fn=observation,
-        n_particles=100,
+        n_particles=6000,
         dynamics_fn=velocity,
         n_eff_threshold=0.9,
         noise_fn=lambda x: cauchy_noise(x, sigmas=[0.001, 0.001]),
@@ -464,14 +464,14 @@ while p:
 
         print('youbotPos without filter', youbotPos)
 
-        # tmp = np.zeros((1, 2))
-        # tmp[0][0] = youbotPos[0]
-        # tmp[0][1] = youbotPos[1]
-        # x_filter = tmp
-        # alpha = youbotEuler[2]
-        # youbotPos = example_filter(x_filter)
-        # youbotPos = np.hstack((youbotPos, youbotPosz))
-        # print('youbotPos with filter', youbotPos)
+        tmp = np.zeros((1, 2))
+        tmp[0][0] = youbotPos[0]
+        tmp[0][1] = youbotPos[1]
+        x_filter = tmp
+        alpha = youbotEuler[2]
+        youbotPos = example_filter(x_filter)
+        youbotPos = np.hstack((youbotPos, youbotPosz))
+        print('youbotPos with filter', youbotPos)
 
         # Milestone1A
         # Get the position and the orientation of the robot.

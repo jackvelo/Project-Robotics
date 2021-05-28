@@ -1311,8 +1311,8 @@ while p:
                 # Store this picture in pts
                 pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait)
                 pts = pts.transpose()
-                # Only keep points within 1.2 meter, to focus on the table
-                pts = pts[0:3, pts[3, :] < 1.2]
+                # Only keep points within 1.6 meter, to focus on the table
+                pts = pts[0:3, pts[3, :] < 1.6]
 
                 # Invert 3rd and 1st line to get XYZ in the right order
                 pts = np.vstack([pts[2, :], pts[0, :], pts[1, :]])
