@@ -1,4 +1,0 @@
-Q&A:
-
-- distanza fra centro del robot e sensore
-- output di hokuyo (perchè 6 righe?)
